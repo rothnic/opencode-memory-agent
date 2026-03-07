@@ -15,7 +15,7 @@ export default defineConfig({
           light: { flavor: 'latte', accent: 'blue' }
         })
       ],
-      title: 'OpenCode Memory Agent',
+      title: 'Memory Agent',
       description:
         'Installable OpenCode plugin and docs for persistent session memory, backlog processing, and project-doc indexing.',
       social: [
