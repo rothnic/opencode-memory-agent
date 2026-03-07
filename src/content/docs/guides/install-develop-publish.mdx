@@ -43,6 +43,7 @@ Example project config:
 {
   "debounceMs": 8000,
   "backfillOnStartup": false,
+  "consolidateEveryMinutes": 30,
   "statusToast": true,
   "docs": {
     "enabled": true,
@@ -65,6 +66,7 @@ After OpenCode starts with the plugin enabled, you should see all of the followi
 - logs written through `client.app.log()` with service `opencode-memory-agent`,
 - `.opencode/memory/private/status.json`,
 - `.opencode/memory/shared/memories.json`,
+- `.opencode/memory/shared/insights.json`,
 - `memory_status` available as a custom tool,
 - optional toast messages when new session memory is captured.
 
@@ -88,6 +90,18 @@ Recommended prompt to OpenCode:
 
 The plugin keeps a content hash per processed session in `.opencode/memory/private/state.json`, so
 re-running backfill only updates sessions whose content changed.
+
+## Consolidation cadence vs. the Gemini reference
+
+The Gemini always-on memory project runs a separate **ConsolidateAgent** every **30 minutes** by
+default. This plugin now mirrors that behavior as closely as OpenCode allows:
+
+- it schedules consolidation every `consolidateEveryMinutes` minutes while OpenCode is running,
+- it can consolidate on startup with `consolidateOnStartup`,
+- it exposes a `memory_consolidate` tool for manual runs.
+
+Because this package runs inside OpenCode instead of as a standalone 24/7 daemon, it does not keep
+processing while OpenCode is fully closed. Use startup backfill and `memory_backfill` to catch up.
 
 ## Project docs support
 
@@ -113,7 +127,7 @@ Then ask a question with:
 memory_query
 ```
 
-That lets memory answers draw from both session memory and indexed project docs.
+That lets memory answers draw from session memory, consolidated insights, and indexed project docs.
 
 ## Local repository development
 

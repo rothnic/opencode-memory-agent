@@ -4,7 +4,14 @@ import { parseModel } from './config.js';
 const ROLE_PREFIX = /^(USER|ASSISTANT|SYSTEM):\s*/i;
 const INTERNAL_SESSION_PREFIX = '[opencode-memory-agent]';
 const MAX_QUERY_MEMORIES = 8;
+const MAX_CONSOLIDATION_MEMORIES = 24;
 const MAX_QUERY_DOCS = 8;
+const ENTITY_FILTER_WORDS = new Set(['The', 'This', 'That', 'These', 'Those', 'We', 'It', 'They', 'You']);
+const MEDIUM_IMPORTANCE_LINE_THRESHOLD = 3;
+const HIGH_IMPORTANCE_LINE_THRESHOLD = 6;
+const LOW_IMPORTANCE_SCORE = 0.4;
+const MEDIUM_IMPORTANCE_SCORE = 0.6;
+const HIGH_IMPORTANCE_SCORE = 0.8;
 
 function unwrapData(response) {
   if (Array.isArray(response)) {
@@ -59,10 +66,10 @@ export function flattenSessionMessages(messagePayload, config) {
 
 function buildMemoryPrompt(sessionId, transcript) {
   return [
-    'You are the persistent memory processor for an OpenCode project.',
+    'You are the IngestAgent for an OpenCode project memory system.',
     'Extract only durable, project-relevant memory from the following session transcript.',
     'Do not include secrets, API keys, raw credentials, or .env values.',
-    'Return concise facts, decisions, TODOs, and topics that would help a future session.',
+    'Return a concise summary, entities, topics, importance, durable facts, decisions, and TODOs that would help a future session.',
     '',
     `Session ID: ${sessionId}`,
     'Transcript:',
@@ -70,15 +77,53 @@ function buildMemoryPrompt(sessionId, transcript) {
   ].join('\n');
 }
 
-function buildQueryPrompt(question, memories, docs) {
+function buildConsolidationPrompt(memories) {
   return [
-    'You answer questions using a curated memory store for an OpenCode project.',
-    'Prefer the provided memory entries and project docs. If the answer is incomplete, say so.',
+    'You are the ConsolidateAgent for an OpenCode project memory system.',
+    'Review these stored memory entries and produce cross-cutting insights, notable connections, and recommended focus areas.',
+    'Prefer durable themes over ephemeral details. Do not include secrets or credentials.',
+    '',
+    'Stored memories:',
+    JSON.stringify(memories, null, 2)
+  ].join('\n');
+}
+
+function formatInsightItems(structured) {
+  return [
+    ...structured.insights.map((summary, index) => ({
+      id: `insight:${index + 1}`,
+      kind: 'insight',
+      summary,
+      updatedAt: new Date().toISOString()
+    })),
+    ...structured.connections.map((summary, index) => ({
+      id: `connection:${index + 1}`,
+      kind: 'connection',
+      summary,
+      updatedAt: new Date().toISOString()
+    })),
+    ...structured.focusAreas.map((summary, index) => ({
+      id: `focus:${index + 1}`,
+      kind: 'focus',
+      summary,
+      updatedAt: new Date().toISOString()
+    }))
+  ];
+}
+
+function buildQueryPrompt(question, memories, insights, docs) {
+  return [
+    'You are the QueryAgent for an OpenCode project memory system.',
+    'Answer the question using the provided memory entries, consolidation insights, and project docs.',
+    'When you cite evidence, cite it inline as [Memory:session-id], [Insight:index], or [Doc:path]. If the answer is incomplete, say so.',
     '',
     `Question: ${question}`,
     '',
     'Memories:',
     JSON.stringify(memories, null, 2),
+    '',
+    'Insights:',
+    JSON.stringify(insights, null, 2),
     '',
     'Project docs:',
     JSON.stringify(docs, null, 2)
@@ -90,12 +135,34 @@ function buildMemorySchema() {
     type: 'object',
     properties: {
       summary: { type: 'string', description: 'One concise summary of the durable session memory.' },
+      entities: { type: 'array', items: { type: 'string' }, description: 'People, systems, products, or orgs mentioned.' },
       facts: { type: 'array', items: { type: 'string' }, description: 'Durable facts to remember.' },
       decisions: { type: 'array', items: { type: 'string' }, description: 'Decisions or confirmed plans.' },
       todos: { type: 'array', items: { type: 'string' }, description: 'Outstanding TODO items.' },
-      topics: { type: 'array', items: { type: 'string' }, description: 'Topics relevant to later retrieval.' }
+      topics: { type: 'array', items: { type: 'string' }, description: 'Topics relevant to later retrieval.' },
+      importance: { type: 'number', description: 'A normalized importance score between 0 and 1.' }
     },
-    required: ['summary', 'facts', 'decisions', 'todos', 'topics']
+    required: ['summary', 'entities', 'facts', 'decisions', 'todos', 'topics', 'importance']
+  };
+}
+
+function buildInsightSchema() {
+  return {
+    type: 'object',
+    properties: {
+      insights: { type: 'array', items: { type: 'string' }, description: 'High-level insights spanning multiple memories.' },
+      connections: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Important relationships or recurring patterns between memories.'
+      },
+      focusAreas: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Recommended next focus areas based on the consolidated memory.'
+      }
+    },
+    required: ['insights', 'connections', 'focusAreas']
   };
 }
 
@@ -166,10 +233,12 @@ export async function createMemoryEntry({ client, config, internalSessions, sess
         sessionId,
         title: title ?? sessionId,
         summary: structured.summary,
+        entities: structured.entities,
         facts: structured.facts,
         decisions: structured.decisions,
         todos: structured.todos,
         topics: structured.topics,
+        importance: structured.importance,
         updatedAt: new Date().toISOString(),
         contentHash,
         messageCount
@@ -190,6 +259,10 @@ export async function createMemoryEntry({ client, config, internalSessions, sess
     sessionId,
     title: title ?? sessionId,
     summary: heuristicLines.slice(0, 4).join(' ').slice(0, 400),
+    entities: heuristicLines
+      .flatMap((line) => line.match(/\b[A-Z][A-Za-z]{2,}(?:[A-Za-z0-9_-]+)?\b/g) ?? [])
+      .filter((entity) => !ENTITY_FILTER_WORDS.has(entity))
+      .slice(0, 8),
     facts: heuristicLines.slice(0, 6),
     decisions: heuristicLines.filter((line) => /decid|ship|use|choose|agreed/i.test(line)).slice(0, 6),
     todos: heuristicLines.filter((line) => /todo|next|follow up|need to|should/i.test(line)).slice(0, 6),
@@ -197,14 +270,87 @@ export async function createMemoryEntry({ client, config, internalSessions, sess
       .flatMap((line) => line.split(/[^A-Za-z0-9_-]+/))
       .filter((word) => word.length > 4)
       .slice(0, 12),
+    importance:
+      heuristicLines.length > HIGH_IMPORTANCE_LINE_THRESHOLD
+        ? HIGH_IMPORTANCE_SCORE
+        : heuristicLines.length > MEDIUM_IMPORTANCE_LINE_THRESHOLD
+          ? MEDIUM_IMPORTANCE_SCORE
+          : LOW_IMPORTANCE_SCORE,
     updatedAt: new Date().toISOString(),
     contentHash,
     messageCount
   };
 }
 
-export async function answerMemoryQuery({ client, config, internalSessions, question, memories, docs }) {
+export function buildConsolidationFallback(memories) {
+  const selectedMemories = memories.slice(0, MAX_CONSOLIDATION_MEMORIES);
+  const topicCounts = new Map();
+  const focusAreas = [];
+
+  for (const memory of selectedMemories) {
+    for (const topic of memory.topics ?? []) {
+      topicCounts.set(topic, (topicCounts.get(topic) ?? 0) + 1);
+    }
+    for (const todo of memory.todos ?? []) {
+      if (focusAreas.length < 6) {
+        focusAreas.push(todo);
+      }
+    }
+  }
+
+  const commonTopics = [...topicCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([topic, count]) => `${topic} (${count})`);
+
+  return {
+    insights: commonTopics.length > 0 ? [`Recurring topics: ${commonTopics.join(', ')}`] : [],
+    connections: selectedMemories.slice(0, 4).map((memory) => `${memory.id} -> ${memory.summary}`),
+    focusAreas: focusAreas.slice(0, 5)
+  };
+}
+
+export async function consolidateMemoryEntries({ client, config, internalSessions, memories }) {
+  const selectedMemories = memories.slice(0, MAX_CONSOLIDATION_MEMORIES);
+  const model = parseModel(config.model);
+
+  if (selectedMemories.length === 0) {
+    return [];
+  }
+
+  try {
+    const structured = await withInternalSession({
+      client,
+      internalSessions,
+      title: `${INTERNAL_SESSION_PREFIX} consolidate`,
+      model,
+      task: async (sessionId, selectedModel) => {
+        const body = {
+          parts: [{ type: 'text', text: buildConsolidationPrompt(selectedMemories) }],
+          format: { type: 'json_schema', schema: buildInsightSchema(), retryCount: 1 }
+        };
+        if (selectedModel) {
+          body.model = selectedModel;
+        }
+        const response = await client.session.prompt({ path: { id: sessionId }, body });
+        return parseStructuredOutput(response);
+      }
+    });
+
+    if (structured) {
+      return formatInsightItems(structured);
+    }
+  } catch {
+    // Fall back to deterministic consolidation.
+  }
+
+  const fallback = buildConsolidationFallback(selectedMemories);
+  return formatInsightItems(fallback);
+}
+
+export async function answerMemoryQuery({ client, config, internalSessions, question, memories, insights, docs }) {
   const selectedMemories = memories.slice(0, MAX_QUERY_MEMORIES);
+  const selectedInsights = insights.slice(0, MAX_QUERY_MEMORIES);
   const selectedDocs = docs.slice(0, MAX_QUERY_DOCS);
   const model = parseModel(config.model);
 
@@ -216,7 +362,7 @@ export async function answerMemoryQuery({ client, config, internalSessions, ques
       model,
       task: async (sessionId, selectedModel) => {
         const body = {
-          parts: [{ type: 'text', text: buildQueryPrompt(question, selectedMemories, selectedDocs) }]
+          parts: [{ type: 'text', text: buildQueryPrompt(question, selectedMemories, selectedInsights, selectedDocs) }]
         };
         if (selectedModel) {
           body.model = selectedModel;
@@ -232,6 +378,9 @@ export async function answerMemoryQuery({ client, config, internalSessions, ques
       '',
       'Top stored memories:',
       ...selectedMemories.map((entry) => `- ${entry.summary}`),
+      '',
+      'Top consolidation insights:',
+      ...selectedInsights.map((entry, index) => `- [Insight:${index + 1}] ${entry.summary}`),
       '',
       'Top indexed docs:',
       ...selectedDocs.map((entry) => `- ${entry.path}: ${entry.title}`)

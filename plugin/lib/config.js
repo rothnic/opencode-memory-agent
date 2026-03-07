@@ -10,12 +10,15 @@ export const DEFAULT_CONFIG = {
   maxTranscriptChars: 16000,
   maxBackfillSessions: 20,
   backfillOnStartup: false,
+  consolidateEveryMinutes: 30,
+  consolidateOnStartup: true,
   statusToast: true,
   storage: {
     baseDir: '.opencode/memory',
     sharedDir: 'shared',
     privateDir: 'private',
     memoryFile: 'memories.json',
+    insightsFile: 'insights.json',
     docsFile: 'project-docs.json',
     stateFile: 'state.json',
     statusFile: 'status.json'
@@ -73,6 +76,7 @@ function normalizeStoragePaths(projectRoot, config) {
       sharedDir,
       privateDir,
       memoryFile: resolve(sharedDir, config.storage.memoryFile),
+      insightsFile: resolve(sharedDir, config.storage.insightsFile),
       docsFile: resolve(sharedDir, config.storage.docsFile),
       stateFile: resolve(privateDir, config.storage.stateFile),
       statusFile: resolve(privateDir, config.storage.statusFile)

@@ -1,6 +1,7 @@
 {
   "backfillOnStartup": false,
   "debounceMs": 8000,
+  "consolidateEveryMinutes": 30,
   "docs": {
     "enabled": true,
     "autoRefreshOnStartup": true,

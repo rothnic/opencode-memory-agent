@@ -6,14 +6,16 @@ import {
   ensureStore,
   getStatus,
   readDocs,
+  readInsights,
   readState,
   readMemories,
   replaceDocs,
+  replaceInsights,
   updateState,
   updateStatus,
   upsertMemory
 } from './lib/store.js';
-import { answerMemoryQuery, createMemoryEntry, flattenSessionMessages } from './lib/memory-processing.js';
+import { answerMemoryQuery, consolidateMemoryEntries, createMemoryEntry, flattenSessionMessages } from './lib/memory-processing.js';
 
 const RELEVANT_EVENTS = new Set(['session.idle', 'file.edited', 'message.updated', 'todo.updated', 'server.connected']);
 const INTERNAL_SESSION_PREFIX = '[opencode-memory-agent]';
@@ -38,6 +40,7 @@ export async function createMemoryAgentPlugin({ client, directory, worktree }) {
   const timers = new Map();
   const activeSessions = new Set();
   const internalSessions = new Set();
+  let consolidationTimer;
   let startupTasksScheduled = false;
 
   await ensureStore(config);
@@ -85,6 +88,34 @@ export async function createMemoryAgentPlugin({ client, directory, worktree }) {
     }));
     await log('info', 'Project docs indexed', { reason, docsCount: docs.length, projectRoot: config.projectRoot });
     return { refreshed: true, docsCount: docs.length };
+  };
+
+  const consolidateMemories = async (reason = 'scheduled') => {
+    const memories = await readMemories(config);
+    const insights = await consolidateMemoryEntries({
+      client,
+      config,
+      internalSessions,
+      memories: memories.memories
+    });
+    await replaceInsights(config, insights);
+    await updateState(config, (state) => ({
+      ...state,
+      lastConsolidationAt: new Date().toISOString()
+    }));
+    await updateStatus(config, (status) => ({
+      ...status,
+      lastConsolidationAt: new Date().toISOString(),
+      insightCount: insights.length,
+      healthy: true
+    }));
+    await log('info', 'Memory consolidation completed', {
+      reason,
+      memories: memories.memories.length,
+      insights: insights.length,
+      everyMinutes: config.consolidateEveryMinutes
+    });
+    return { consolidated: insights.length, memories: memories.memories.length };
   };
 
   const processSession = async (sessionId, reason, force = false) => {
@@ -153,8 +184,10 @@ export async function createMemoryAgentPlugin({ client, directory, worktree }) {
         sessionId,
         reason,
         memorySummary: entry.summary,
+        entities: entry.entities.length,
         facts: entry.facts.length,
-        todos: entry.todos.length
+        todos: entry.todos.length,
+        importance: entry.importance
       });
       await showToast(`Memory updated for session ${session?.title ?? sessionId}`, 'success');
       return { processed: true, sessionId, summary: entry.summary };
@@ -233,7 +266,8 @@ export async function createMemoryAgentPlugin({ client, directory, worktree }) {
     await log('info', 'OpenCode memory agent initialized', {
       projectRoot: config.projectRoot,
       storage: config.paths,
-      debounceMs: config.debounceMs
+      debounceMs: config.debounceMs,
+      consolidateEveryMinutes: config.consolidateEveryMinutes
     });
 
     if (config.docs.enabled && config.docs.autoRefreshOnStartup) {
@@ -241,6 +275,20 @@ export async function createMemoryAgentPlugin({ client, directory, worktree }) {
     }
     if (config.backfillOnStartup) {
       await backfillSessions(config.maxBackfillSessions);
+    }
+    if (config.consolidateOnStartup) {
+      await consolidateMemories('startup');
+    }
+    if (config.consolidateEveryMinutes > 0 && !consolidationTimer) {
+      consolidationTimer = setInterval(() => {
+        consolidateMemories('scheduled').catch(async (error) => {
+          await log('error', 'Scheduled memory consolidation failed', {
+            error: error instanceof Error ? error.message : String(error)
+          });
+        });
+      }, config.consolidateEveryMinutes * 60 * 1000);
+      // Allow the hosting process to exit naturally if this timer is the only remaining work.
+      consolidationTimer.unref?.();
     }
   };
 
@@ -307,19 +355,28 @@ export async function createMemoryAgentPlugin({ client, directory, worktree }) {
           return `Backfill complete. Processed ${result.processed} session(s) with limit ${result.limit}.`;
         }
       }),
+      memory_consolidate: tool({
+        description: 'Consolidate stored memories into cross-cutting insights, like the Gemini reference project does on its timer.',
+        args: {},
+        async execute() {
+          const result = await consolidateMemories('manual');
+          return `Consolidation complete. Processed ${result.memories} memory entries into ${result.consolidated} insight items.`;
+        }
+      }),
       memory_query: tool({
         description: 'Answer a question from the stored memory entries and indexed project docs.',
         args: {
           question: tool.schema.string()
         },
         async execute(args) {
-          const [memories, docs] = await Promise.all([readMemories(config), readDocs(config)]);
+          const [memories, insights, docs] = await Promise.all([readMemories(config), readInsights(config), readDocs(config)]);
           return answerMemoryQuery({
             client,
             config,
             internalSessions,
             question: args.question,
             memories: memories.memories,
+            insights: insights.insights,
             docs: docs.docs
           });
         }

@@ -24,8 +24,9 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
     name in `opencode.json`.
   </Card>
   <Card title="Memory + backlog tools" icon="list-tree">
-    The plugin captures session memory on idle, exposes `memory_status`, `memory_backfill`,
-    `memory_query`, and `memory_refresh_docs`, and persists state in `.opencode/memory/`.
+    The plugin captures session memory on idle, runs periodic consolidation, exposes
+    `memory_status`, `memory_backfill`, `memory_consolidate`, `memory_query`, and
+    `memory_refresh_docs`, and persists state in `.opencode/memory/`.
   </Card>
   <Card title="Project docs indexing" icon="open-book">
     Common documentation files such as `README.md`, `AGENTS.md`, and `docs/**/*.mdx` are indexed

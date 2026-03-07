@@ -1,12 +1,14 @@
 import { ensureDirectory, readJson, writeJson } from './fs.js';
 
 const EMPTY_MEMORIES = { version: 1, memories: [] };
+const EMPTY_INSIGHTS = { version: 1, insights: [] };
 const EMPTY_DOCS = { version: 1, docs: [] };
 const EMPTY_STATE = {
   version: 1,
   processedSessions: {},
   docs: {},
   lastBackfillAt: null,
+  lastConsolidationAt: null,
   lastDocsRefreshAt: null,
   lastMemoryRunAt: null
 };
@@ -16,9 +18,11 @@ const EMPTY_STATUS = {
   lastEvent: null,
   lastRun: null,
   lastBackfillAt: null,
+  lastConsolidationAt: null,
   lastDocsRefreshAt: null,
   processedSessionCount: 0,
   memoryCount: 0,
+  insightCount: 0,
   docsCount: 0,
   healthy: true
 };
@@ -27,6 +31,7 @@ export async function ensureStore(config) {
   await ensureDirectory(config.paths.sharedDir);
   await ensureDirectory(config.paths.privateDir);
   await writeJsonIfMissing(config.paths.memoryFile, EMPTY_MEMORIES);
+  await writeJsonIfMissing(config.paths.insightsFile, EMPTY_INSIGHTS);
   await writeJsonIfMissing(config.paths.docsFile, EMPTY_DOCS);
   await writeJsonIfMissing(config.paths.stateFile, EMPTY_STATE);
   await writeJsonIfMissing(config.paths.statusFile, EMPTY_STATUS);
@@ -45,6 +50,14 @@ export async function readMemories(config) {
 
 export async function writeMemories(config, value) {
   await writeJson(config.paths.memoryFile, value);
+}
+
+export async function readInsights(config) {
+  return readJson(config.paths.insightsFile, EMPTY_INSIGHTS);
+}
+
+export async function writeInsights(config, value) {
+  await writeJson(config.paths.insightsFile, value);
 }
 
 export async function readDocs(config) {
@@ -92,10 +105,17 @@ export async function replaceDocs(config, docs) {
   return payload.docs;
 }
 
+export async function replaceInsights(config, insights) {
+  const payload = { version: 1, insights: [...insights] };
+  await writeInsights(config, payload);
+  return payload.insights;
+}
+
 export async function getStatus(config) {
-  const [status, memories, docs, state] = await Promise.all([
+  const [status, memories, insights, docs, state] = await Promise.all([
     readJson(config.paths.statusFile, EMPTY_STATUS),
     readMemories(config),
+    readInsights(config),
     readDocs(config),
     readState(config)
   ]);
@@ -103,6 +123,7 @@ export async function getStatus(config) {
   return {
     ...status,
     memoryCount: memories.memories.length,
+    insightCount: insights.insights.length,
     docsCount: docs.docs.length,
     processedSessionCount: Object.keys(state.processedSessions ?? {}).length,
     storage: config.paths,

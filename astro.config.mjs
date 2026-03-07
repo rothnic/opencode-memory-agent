@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import starlightCatppuccin from '@catppuccin/starlight';
 import rehypeMermaid from 'rehype-mermaid';
 import optimizeMermaidSvg from './src/plugins/rehype-optimize-mermaid-svg.mjs';
 
@@ -8,6 +9,12 @@ export default defineConfig({
   base: '/opencode-memory-agent',
   integrations: [
     starlight({
+      plugins: [
+        starlightCatppuccin({
+          dark: { flavor: 'macchiato', accent: 'sky' },
+          light: { flavor: 'latte', accent: 'blue' }
+        })
+      ],
       title: 'OpenCode Memory Agent',
       description:
         'Installable OpenCode plugin and docs for persistent session memory, backlog processing, and project-doc indexing.',
