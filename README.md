@@ -3,7 +3,7 @@
 `opencode-memory-agent` is an **installable OpenCode plugin package** for persistent session
 memory, cross-session insights, project-doc indexing, and verification tools inside OpenCode.
 
-It does four things out of the box:
+It does five things out of the box:
 
 1. watches high-signal OpenCode events such as `session.idle`,
 2. captures durable session memory into `.opencode/memory/`,
@@ -84,8 +84,9 @@ It also:
 
 - writes structured logs through `client.app.log()`
 - updates `.opencode/memory/private/status.json`
-- writes memory entries to `.opencode/memory/shared/memories.json`
-- writes consolidation insights to `.opencode/memory/shared/insights.json`
+- stores shared memory in `.opencode/memory/shared/memory.db`
+- mirrors memory entries to `.opencode/memory/shared/memories.json`
+- mirrors consolidation insights to `.opencode/memory/shared/insights.json`
 - optionally shows a toast when session memory is captured
 
 The persisted status file now records:
@@ -110,6 +111,7 @@ The persisted status file now records:
 
 ### How to review what was generated
 
+- open `.opencode/memory/shared/memory.db` for the primary shared memory store
 - open `.opencode/memory/shared/memories.json` to inspect stored session summaries, facts, decisions, todos, and topics
 - open `.opencode/memory/shared/insights.json` to inspect cross-session consolidation output
 - open `.opencode/memory/shared/project-docs.json` to inspect indexed docs used during retrieval
@@ -156,6 +158,9 @@ Indexed docs are stored in:
 ```text
 .opencode/memory/shared/project-docs.json
 ```
+
+If a session references readable local project files such as source files or config files, the
+plugin also loads small excerpts from those files during memory extraction.
 
 ## Repository development
 

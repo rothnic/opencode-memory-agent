@@ -65,6 +65,7 @@ After OpenCode starts with the plugin enabled, you should see all of the followi
 
 - logs written through `client.app.log()` with service `opencode-memory-agent`,
 - `.opencode/memory/private/status.json`,
+- `.opencode/memory/shared/memory.db`,
 - `.opencode/memory/shared/memories.json`,
 - `.opencode/memory/shared/insights.json`,
 - `memory_status` available as a custom tool,
@@ -94,11 +95,12 @@ Use this verification flow:
 
 These files give an explicit audit trail of what the plugin has done:
 
+- `.opencode/memory/shared/memory.db` — primary shared store for memories, insights, and indexed docs
 - `.opencode/memory/private/status.json` — health, activity, cadence, counters, timestamps, last error
 - `.opencode/memory/private/state.json` — processed session hashes and internal bookkeeping
-- `.opencode/memory/shared/memories.json` — stored session summaries/facts/decisions/todos/topics
-- `.opencode/memory/shared/insights.json` — cross-memory consolidation output
-- `.opencode/memory/shared/project-docs.json` — indexed project docs used during retrieval
+- `.opencode/memory/shared/memories.json` — mirrored session summaries/facts/decisions/todos/topics
+- `.opencode/memory/shared/insights.json` — mirrored cross-memory consolidation output
+- `.opencode/memory/shared/project-docs.json` — mirrored indexed project docs used during retrieval
 
 If a user asks “is it working?”, the answer should be visible in both `memory_status` and these files.
 
@@ -147,6 +149,11 @@ memory_query
 ```
 
 That lets memory answers draw from session memory, consolidated insights, and indexed project docs.
+
+When the active session explicitly mentions a readable local project file, the ingest pass also
+loads a small excerpt from that file and includes it in the memory extraction context. This helps
+capture decisions that depend on nearby code or docs without requiring that every relevant file be
+part of the configured docs index.
 
 ## How to evaluate whether memory retrieval is useful
 

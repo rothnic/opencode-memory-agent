@@ -15,7 +15,13 @@ import {
   updateStatus,
   upsertMemory
 } from './lib/store.js';
-import { answerMemoryQuery, consolidateMemoryEntries, createMemoryEntry, flattenSessionMessages } from './lib/memory-processing.js';
+import {
+  answerMemoryQuery,
+  consolidateMemoryEntries,
+  createMemoryEntry,
+  enrichTranscriptWithReferencedFiles,
+  flattenSessionMessages
+} from './lib/memory-processing.js';
 
 const RELEVANT_EVENTS = new Set(['session.idle', 'file.edited', 'message.updated', 'todo.updated', 'server.connected']);
 const INTERNAL_SESSION_PREFIX = '[opencode-memory-agent]';
@@ -83,6 +89,7 @@ function buildStatusReport({ status, memories, insights, docs }) {
     `- internal SDK sessions active: ${status.runtime?.internalSessions ?? 0}`,
     '',
     'Generated artifacts',
+    `- shared database: ${status.storage.dbFile}`,
     `- memories: ${status.memoryCount} -> ${status.storage.memoryFile}`,
     `- insights: ${status.insightCount} -> ${status.storage.insightsFile}`,
     `- docs: ${status.docsCount} -> ${status.storage.docsFile}`,
@@ -298,7 +305,8 @@ export async function createMemoryAgentPlugin({ client, directory, worktree }) {
         readState(config)
       ]);
       const session = unwrapData(sessionResponse);
-      const { transcript, contentHash, messageCount } = flattenSessionMessages(messageResponse, config);
+      const { transcript, messageCount } = flattenSessionMessages(messageResponse, config);
+      const { referencedFiles, contentHash } = await enrichTranscriptWithReferencedFiles(transcript, config);
 
       if (!transcript.trim()) {
         await log('debug', 'Skipping empty session transcript', { sessionId, reason });
@@ -319,7 +327,8 @@ export async function createMemoryAgentPlugin({ client, directory, worktree }) {
         title: session?.title,
         transcript,
         contentHash,
-        messageCount
+        messageCount,
+        referencedFiles
       });
 
       await upsertMemory(config, entry);
@@ -351,6 +360,7 @@ export async function createMemoryAgentPlugin({ client, directory, worktree }) {
         entities: entry.entities.length,
         facts: entry.facts.length,
         todos: entry.todos.length,
+        fileReferences: entry.fileReferences.length,
         importance: entry.importance
       });
       await showToast(`Memory updated for session ${session?.title ?? sessionId}`, 'success');

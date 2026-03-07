@@ -8,6 +8,7 @@ description: Actual storage files, multi-machine guidance, and secret-handling r
 ```text
 .opencode/memory/
   shared/
+    memory.db
     memories.json
     insights.json
     project-docs.json
@@ -18,12 +19,14 @@ description: Actual storage files, multi-machine guidance, and secret-handling r
 
 ### Shared files
 
-- `memories.json` stores curated session memory entries.
-- `insights.json` stores consolidation output derived across multiple memories.
-- `project-docs.json` stores indexed project documentation metadata and excerpts.
+- `memory.db` is the primary shared store for memories, insights, and indexed docs.
+- `memories.json` mirrors curated session memory entries for inspection and review.
+- `insights.json` mirrors consolidation output derived across multiple memories.
+- `project-docs.json` mirrors indexed project documentation metadata and excerpts.
 
-These files are designed to be **portable and reviewable**. Teams can commit them intentionally if
-that matches their workflow.
+The database gives the plugin the same broad storage shape as the Gemini reference implementation,
+while the JSON artifacts remain **portable and reviewable**. Teams can commit the shared store
+intentionally if that matches their workflow.
 
 ### Private files
 
@@ -39,6 +42,7 @@ The plugin is opinionated about secret safety:
 
 - it refuses direct `.env` reads through the `tool.execute.before` hook,
 - it asks the model to redact secrets when extracting memory,
+- it skips `.env` and generated memory files when loading referenced file context from a session,
 - it stores summaries and curated facts instead of raw session dumps,
 - it keeps operational state separate from shared memory.
 

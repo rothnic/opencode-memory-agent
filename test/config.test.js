@@ -22,6 +22,8 @@ test('loadPluginConfig merges project config over defaults', async () => {
   assert.equal(config.consolidateEveryMinutes, 30);
   assert.equal(config.docs.maxFiles, 5);
   assert.match(config.paths.baseDir, /\.custom-memory$/);
+  assert.equal(config.storage.dbFile, 'memory.db');
+  assert.match(config.paths.dbFile, /memory\.db$/);
   assert.equal(config.storage.memoryFile, 'memories.json');
   assert.match(config.paths.insightsFile, /insights\.json$/);
 });

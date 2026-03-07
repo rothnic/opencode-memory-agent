@@ -22,10 +22,10 @@ plugin instead of a standalone background service.
 | Gemini model calls | OpenCode-configured provider/model used by the plugin's internal prompts |
 | Python app loop | Plugin event hooks and timers inside the OpenCode runtime |
 | Direct process logging | `client.app.log()` |
-| File watcher inbox | OpenCode session events plus optional project-doc refresh on edits |
-| HTTP query endpoint | `memory_query` custom tool backed by stored memory + indexed docs |
+| File watcher inbox | OpenCode session events, indexed docs, and referenced-file loading from session transcripts |
+| HTTP query endpoint | `memory_query` custom tool backed by SQLite-stored memory + indexed docs |
 | Consolidation job | `consolidateEveryMinutes` timer and `memory_consolidate` tool |
-| Single memory store | `.opencode/memory/shared/*.json` + `.opencode/memory/private/*.json` |
+| Single memory store | `.opencode/memory/shared/memory.db` with mirrored JSON review artifacts |
 
 ## Reference architecture
 
@@ -43,16 +43,42 @@ In this repository, those same responsibilities are implemented with OpenCode-na
 
 - session and file events trigger memory ingestion,
 - stored memories are consolidated on a configurable timer,
-- queries combine memory entries, consolidated insights, and indexed project docs.
+- queries synthesize from stored memories, consolidation insights, and indexed project docs.
+
+## Verified storage and retrieval behavior in the Gemini reference
+
+The reference README explicitly states:
+
+- it uses **SQLite** as its persistent memory store (`memory.db`),
+- it uses **no vector database** and **no embeddings**,
+- it has a **processed file** table to avoid re-ingesting the same inbox file,
+- the QueryAgent reads stored memories plus consolidation history directly from the database.
+
+It also ingests more file types than this plugin does. The reference accepts text, images, audio,
+video, and PDFs through an inbox watcher, dashboard uploads, or an HTTP API.
+
+## Current plugin alignment
+
+This plugin now matches the key storage decision from the Gemini reference:
+
+- shared memories, insights, and indexed docs are stored in `.opencode/memory/shared/memory.db`,
+- `memories.json`, `insights.json`, and `project-docs.json` are mirrored review artifacts for users,
+- retrieval uses direct reads from the shared database rather than a vector index,
+- when a session transcript references local project files, the plugin loads small readable file excerpts and includes them in memory extraction.
+
+For query-time selection, the plugin narrows the SQLite-backed records with lightweight token-overlap
+ranking before the QueryAgent synthesizes the final answer. This keeps retrieval question-aware
+without adding an embedding pipeline the Gemini reference does not use.
 
 ## Differences that matter
 
 The main runtime differences are:
 
 - **Runtime model**: the Gemini reference runs as a standalone process; this plugin runs only while OpenCode is running.
-- **Ingest source**: the Gemini reference watches its own inputs; this plugin uses OpenCode events and optional backfill.
+- **Ingest source**: the Gemini reference watches an inbox folder and HTTP/dashboard inputs; this plugin uses OpenCode events, optional backfill, indexed docs, and referenced-file loading from transcripts.
 - **Catch-up behavior**: this plugin relies on `memory_backfill` and optional startup processing to recover work that happened while OpenCode was closed.
-- **Storage format**: this plugin stores curated JSON artifacts in `.opencode/memory/` rather than a separate database format.
+- **File modality**: the Gemini reference ingests multimodal files; this plugin currently loads readable local text/code/config files and separately indexes configured docs.
+- **OpenCode internals**: this plugin uses OpenCode's documented SDK/session APIs and repository files; it does not directly query an internal OpenCode database.
 
 ## Where to look elsewhere in the docs
 

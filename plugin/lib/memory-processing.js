@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { open, stat } from 'node:fs/promises';
+import { extname, resolve, relative } from 'node:path';
 import { parseModel } from './config.js';
 
 const ROLE_PREFIX = /^(USER|ASSISTANT|SYSTEM):\s*/i;
@@ -12,6 +14,47 @@ const HIGH_IMPORTANCE_LINE_THRESHOLD = 6;
 const LOW_IMPORTANCE_SCORE = 0.4;
 const MEDIUM_IMPORTANCE_SCORE = 0.6;
 const HIGH_IMPORTANCE_SCORE = 0.8;
+const MAX_QUERY_CANDIDATES = 8;
+const MAX_REFERENCED_FILES = 3;
+const MAX_REFERENCED_FILE_BYTES = 4000;
+const MIN_TOKEN_LENGTH = 2;
+const SIGNIFICANT_TOKEN_LENGTH = 6;
+const SIGNIFICANT_TOKEN_WEIGHT = 2;
+const REGULAR_TOKEN_WEIGHT = 1;
+// Date.now() is milliseconds since epoch (~1e12), so dividing by 1e15 keeps recency as a tiny
+// decimal tie-breaker that never outweighs a real token match score.
+const TIMESTAMP_NORMALIZATION_FACTOR = 1e15;
+const BINARY_EXTENSIONS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.bmp',
+  '.svg',
+  '.mp3',
+  '.wav',
+  '.ogg',
+  '.flac',
+  '.m4a',
+  '.aac',
+  '.mp4',
+  '.webm',
+  '.mov',
+  '.avi',
+  '.mkv',
+  '.pdf',
+  '.zip',
+  '.gz',
+  '.tar',
+  '.tgz',
+  '.jar',
+  '.exe',
+  '.dll',
+  '.so',
+  '.dylib'
+]);
+const FILE_REFERENCE_PATTERN = /(?:^|[\s("'`])((?:\.{1,2}\/)?(?:[\w@-]+\/)*[\w@.-]+\.[A-Za-z0-9_-]+)(?=$|[\s)"'`:,])/gm;
 
 function unwrapData(response) {
   if (Array.isArray(response)) {
@@ -64,17 +107,29 @@ export function flattenSessionMessages(messagePayload, config) {
   };
 }
 
-function buildMemoryPrompt(sessionId, transcript) {
-  return [
+function buildMemoryPrompt(sessionId, transcript, referencedFiles = []) {
+  const sections = [
     'You are the IngestAgent for an OpenCode project memory system.',
     'Extract only durable, project-relevant memory from the following session transcript.',
     'Do not include secrets, API keys, raw credentials, or .env values.',
-    'Return a concise summary, entities, topics, importance, durable facts, decisions, and TODOs that would help a future session.',
+    'Use any referenced project file excerpts as supporting context when they clarify the work discussed in the session.',
+    'Return a concise summary, entities, topics, importance, durable facts, decisions, TODOs, and file references that would help a future session.',
     '',
     `Session ID: ${sessionId}`,
     'Transcript:',
     transcript
-  ].join('\n');
+  ];
+
+  if (referencedFiles.length > 0) {
+    sections.push('', 'Referenced project files:');
+    for (const file of referencedFiles) {
+      sections.push(`File: ${file.path}`);
+      sections.push(file.excerpt);
+      sections.push('');
+    }
+  }
+
+  return sections.join('\n');
 }
 
 function buildConsolidationPrompt(memories) {
@@ -140,9 +195,14 @@ function buildMemorySchema() {
       decisions: { type: 'array', items: { type: 'string' }, description: 'Decisions or confirmed plans.' },
       todos: { type: 'array', items: { type: 'string' }, description: 'Outstanding TODO items.' },
       topics: { type: 'array', items: { type: 'string' }, description: 'Topics relevant to later retrieval.' },
-      importance: { type: 'number', description: 'A normalized importance score between 0 and 1.' }
+      importance: { type: 'number', description: 'A normalized importance score between 0 and 1.' },
+      fileReferences: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Project file paths that materially informed this memory, if any.'
+      }
     },
-    required: ['summary', 'entities', 'facts', 'decisions', 'todos', 'topics', 'importance']
+    required: ['summary', 'entities', 'facts', 'decisions', 'todos', 'topics', 'importance', 'fileReferences']
   };
 }
 
@@ -204,7 +264,142 @@ async function withInternalSession({ client, internalSessions, title, model, tas
   }
 }
 
-export async function createMemoryEntry({ client, config, internalSessions, sessionId, title, transcript, contentHash, messageCount }) {
+function extractCandidateFileReferences(transcript) {
+  const references = new Set();
+  for (const match of transcript.matchAll(FILE_REFERENCE_PATTERN)) {
+    const value = match[1]?.trim();
+    if (!value || value.includes('://')) {
+      continue;
+    }
+    references.add(value.replace(/^[("'`]+|[)"'`]+$/g, ''));
+  }
+  return [...references];
+}
+
+function isProtectedOrGeneratedPath(relativePath) {
+  const normalized = String(relativePath ?? '').replace(/\\/g, '/');
+  return (
+    /(^|\/)\.env(\.[^/]+)?$/i.test(normalized) ||
+    normalized.startsWith('.opencode/memory/private/') ||
+    normalized.startsWith('.opencode/memory/shared/')
+  );
+}
+
+function isTextLikeReference(filePath) {
+  return !BINARY_EXTENSIONS.has(extname(filePath).toLowerCase());
+}
+
+async function readReferencedFiles(transcript, config) {
+  const references = extractCandidateFileReferences(transcript);
+  const resolved = [];
+  const hash = createHash('sha256');
+
+  for (const reference of references) {
+    if (resolved.length >= MAX_REFERENCED_FILES) {
+      break;
+    }
+
+    const absolutePath = resolve(config.projectRoot, reference);
+    const relativePath = relative(config.projectRoot, absolutePath).replace(/\\/g, '/');
+    if (!relativePath || relativePath.startsWith('..') || isProtectedOrGeneratedPath(relativePath) || !isTextLikeReference(relativePath)) {
+      continue;
+    }
+
+    try {
+      const fileStats = await stat(absolutePath);
+      if (!fileStats.isFile()) {
+        continue;
+      }
+      const handle = await open(absolutePath, 'r');
+      const buffer = Buffer.alloc(MAX_REFERENCED_FILE_BYTES);
+      let bytesRead = 0;
+      try {
+        ({ bytesRead } = await handle.read(buffer, 0, MAX_REFERENCED_FILE_BYTES, 0));
+      } finally {
+        await handle.close();
+      }
+      const excerpt = buffer.subarray(0, bytesRead).toString('utf8');
+      if (!excerpt.trim()) {
+        continue;
+      }
+      const record = {
+        path: relativePath,
+        excerpt,
+        updatedAt: fileStats.mtime.toISOString()
+      };
+      resolved.push(record);
+      hash.update(relativePath);
+      hash.update(excerpt);
+      hash.update(record.updatedAt);
+    } catch {
+      // Ignore referenced paths that are missing, binary, or unreadable.
+    }
+  }
+
+  return {
+    files: resolved,
+    contentHashSuffix: resolved.length > 0 ? hash.digest('hex') : ''
+  };
+}
+
+function tokenize(value) {
+  // Keep common file-path separators so questions about specific files can match entries that
+  // mention paths like `src/index.js`; drop very short fragments to reduce noisy matches.
+  return String(value ?? '')
+    .toLowerCase()
+    .split(/[^a-z0-9_./-]+/)
+    .filter((token) => token.length > MIN_TOKEN_LENGTH);
+}
+
+function scoreCandidate(questionTokens, textTokens, recencyValue = '') {
+  if (questionTokens.length === 0 || textTokens.length === 0) {
+    return 0;
+  }
+
+  const tokenSet = new Set(textTokens);
+  let score = 0;
+  for (const token of questionTokens) {
+    if (tokenSet.has(token)) {
+      score += token.length > SIGNIFICANT_TOKEN_LENGTH ? SIGNIFICANT_TOKEN_WEIGHT : REGULAR_TOKEN_WEIGHT;
+    }
+  }
+
+  if (score === 0) {
+    return 0;
+  }
+
+  return score + (recencyValue ? Date.parse(recencyValue) / TIMESTAMP_NORMALIZATION_FACTOR : 0);
+}
+
+function selectRelevantEntries(entries, question, textExtractor, limit) {
+  // Prefer explicit token overlap first, then use a tiny recency tie-breaker so similarly
+  // relevant entries lean toward fresher records without overpowering the text match.
+  const questionTokens = tokenize(question);
+  const ranked = entries
+    .map((entry) => ({
+      entry,
+      score: scoreCandidate(questionTokens, tokenize(textExtractor(entry)), entry.updatedAt)
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const withHits = ranked.filter((item) => item.score > 0).slice(0, limit).map((item) => item.entry);
+  if (withHits.length > 0) {
+    return withHits;
+  }
+  return entries.slice(0, limit);
+}
+
+export async function createMemoryEntry({
+  client,
+  config,
+  internalSessions,
+  sessionId,
+  title,
+  transcript,
+  contentHash,
+  messageCount,
+  referencedFiles = []
+}) {
   const model = parseModel(config.model);
 
   try {
@@ -215,7 +410,7 @@ export async function createMemoryEntry({ client, config, internalSessions, sess
       model,
       task: async (internalSessionId, selectedModel) => {
         const body = {
-          parts: [{ type: 'text', text: buildMemoryPrompt(sessionId, transcript) }],
+          parts: [{ type: 'text', text: buildMemoryPrompt(sessionId, transcript, referencedFiles) }],
           format: { type: 'json_schema', schema: buildMemorySchema(), retryCount: 1 }
         };
         if (selectedModel) {
@@ -238,6 +433,7 @@ export async function createMemoryEntry({ client, config, internalSessions, sess
         decisions: structured.decisions,
         todos: structured.todos,
         topics: structured.topics,
+        fileReferences: structured.fileReferences,
         importance: structured.importance,
         updatedAt: new Date().toISOString(),
         contentHash,
@@ -270,6 +466,7 @@ export async function createMemoryEntry({ client, config, internalSessions, sess
       .flatMap((line) => line.split(/[^A-Za-z0-9_-]+/))
       .filter((word) => word.length > 4)
       .slice(0, 12),
+    fileReferences: referencedFiles.map((file) => file.path),
     importance:
       heuristicLines.length > HIGH_IMPORTANCE_LINE_THRESHOLD
         ? HIGH_IMPORTANCE_SCORE
@@ -349,9 +546,33 @@ export async function consolidateMemoryEntries({ client, config, internalSession
 }
 
 export async function answerMemoryQuery({ client, config, internalSessions, question, memories, insights, docs }) {
-  const selectedMemories = memories.slice(0, MAX_QUERY_MEMORIES);
-  const selectedInsights = insights.slice(0, MAX_QUERY_MEMORIES);
-  const selectedDocs = docs.slice(0, MAX_QUERY_DOCS);
+  const selectedMemories = selectRelevantEntries(
+    memories,
+    question,
+    (entry) =>
+      [
+        entry.summary,
+        ...(entry.entities ?? []),
+        ...(entry.topics ?? []),
+        ...(entry.facts ?? []),
+        ...(entry.decisions ?? []),
+        ...(entry.todos ?? []),
+        ...(entry.fileReferences ?? [])
+      ].join('\n'),
+    Math.min(MAX_QUERY_MEMORIES, MAX_QUERY_CANDIDATES)
+  );
+  const selectedInsights = selectRelevantEntries(
+    insights,
+    question,
+    (entry) => `${entry.kind ?? ''}\n${entry.summary}`,
+    Math.min(MAX_QUERY_MEMORIES, MAX_QUERY_CANDIDATES)
+  );
+  const selectedDocs = selectRelevantEntries(
+    docs,
+    question,
+    (entry) => [entry.path, entry.title, ...(entry.headings ?? []), entry.excerpt].join('\n'),
+    Math.min(MAX_QUERY_DOCS, MAX_QUERY_CANDIDATES)
+  );
   const model = parseModel(config.model);
 
   try {
@@ -386,4 +607,14 @@ export async function answerMemoryQuery({ client, config, internalSessions, ques
       ...selectedDocs.map((entry) => `- ${entry.path}: ${entry.title}`)
     ].join('\n');
   }
+}
+
+export async function enrichTranscriptWithReferencedFiles(transcript, config) {
+  const referencedFiles = await readReferencedFiles(transcript, config);
+  return {
+    referencedFiles: referencedFiles.files,
+    contentHash: referencedFiles.contentHashSuffix
+      ? createHash('sha256').update(`${transcript}\n${referencedFiles.contentHashSuffix}`).digest('hex')
+      : createHash('sha256').update(transcript).digest('hex')
+  };
 }
