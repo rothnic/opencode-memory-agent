@@ -3,7 +3,10 @@
 `opencode-memory-agent` is an **installable OpenCode plugin package** for persistent session
 memory, cross-session insights, project-doc indexing, and verification tools inside OpenCode.
 
-Project homepage: [www.nickroth.com](https://www.nickroth.com)
+## Maintainer
+
+- [Nick Roth](https://www.nickroth.com) — homepage
+- [@rothnic](https://github.com/rothnic) — GitHub profile
 
 It does five things out of the box:
 

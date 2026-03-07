@@ -1,0 +1,63 @@
+name: Manual real-provider integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Full OpenCode model ID in provider/model form
+        required: true
+        default: moonshotai/kimi-k2
+        type: string
+      provider_base_url:
+        description: Optional provider base URL for OpenAI-compatible/Kimi-style integrations
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      OPENCODE_INTEGRATION_MODEL: ${{ inputs.model }}
+      OPENCODE_PROVIDER_BASE_URL: ${{ inputs.provider_base_url }}
+      OPENCODE_INTEGRATION_OUTPUT_DIR: ${{ github.workspace }}/.tmp/opencode-integration
+      OPENCODE_PROVIDER_API_KEY: ${{ secrets.OPENCODE_PROVIDER_API_KEY }}
+      KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENCODE_AUTH_JSON_B64: ${{ secrets.OPENCODE_AUTH_JSON_B64 }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install repository dependencies
+        run: npm ci
+
+      - name: Install OpenCode CLI
+        run: npm install -g opencode-ai
+
+      - name: Run manual end-user installation integration test
+        run: node ./scripts/run-manual-opencode-integration.mjs
+
+      - name: Upload integration logs and fixture artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencode-manual-integration
+          path: ./.tmp/opencode-integration
+          if-no-files-found: warn

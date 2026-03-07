@@ -23,6 +23,10 @@
     "type": "git",
     "url": "git+https://github.com/rothnic/opencode-memory-agent.git"
   },
+  "author": {
+    "name": "Nick Roth",
+    "url": "https://www.nickroth.com"
+  },
   "homepage": "https://rothnic.github.io/opencode-memory-agent/",
   "bugs": {
     "url": "https://github.com/rothnic/opencode-memory-agent/issues"
