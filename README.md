@@ -73,7 +73,7 @@ Example project config:
 
 The plugin exposes custom tools:
 
-- `memory_status` — shows storage paths, counts, and last-run metadata
+- `memory_status` — shows configuration, runtime health, current background activity, last-run timestamps, generated artifact paths, recent generated examples, and verification guidance
 - `memory_backfill` — processes existing sessions into memory
 - `memory_consolidate` — builds cross-memory insights on demand
 - `memory_query` — answers a question from stored memory and indexed docs
@@ -86,6 +86,44 @@ It also:
 - writes memory entries to `.opencode/memory/shared/memories.json`
 - writes consolidation insights to `.opencode/memory/shared/insights.json`
 - optionally shows a toast when session memory is captured
+
+The persisted status file now records:
+
+- current activity such as `starting`, `waiting-for-idle`, `processing-session`, `backfilling`, `consolidating`, or `refreshing-docs`
+- the configured cadence and toggles that affect background processing
+- last run timestamps for memory capture, backfill, consolidation, and docs refresh
+- runtime counters for queued/active/internal sessions
+- the last error, if any
+
+### Quick verification flow
+
+1. Start OpenCode with the plugin enabled.
+2. Work in a session until it goes idle.
+3. Ask OpenCode to run `memory_status`.
+4. Confirm:
+   - health is `yes`,
+   - current activity eventually returns to `idle`,
+   - last memory capture is recent,
+   - generated files exist under `.opencode/memory/`,
+   - recent generated examples match your recent work.
+
+### How to review what was generated
+
+- open `.opencode/memory/shared/memories.json` to inspect stored session summaries, facts, decisions, todos, and topics
+- open `.opencode/memory/shared/insights.json` to inspect cross-session consolidation output
+- open `.opencode/memory/shared/project-docs.json` to inspect indexed docs used during retrieval
+- open `.opencode/memory/private/status.json` to inspect current health, last run, and background processing state
+
+### How to tell whether retrieval is useful
+
+Use `memory_query` to ask a question about known prior work and verify that the answer cites useful
+`[Memory:*]`, `[Insight:*]`, or `[Doc:*]` evidence. Then use that result as context in a fresh task,
+for example:
+
+> Run `memory_query` for prior decisions about auth/session handling, summarize the answer, and use it before planning this task.
+
+If retrieval is weak, stale, or uncited, run `memory_backfill`, `memory_consolidate`, or
+`memory_refresh_docs` and compare the answer again.
 
 ## Back-process existing sessions
 

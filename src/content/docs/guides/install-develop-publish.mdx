@@ -70,11 +70,37 @@ After OpenCode starts with the plugin enabled, you should see all of the followi
 - `memory_status` available as a custom tool,
 - optional toast messages when new session memory is captured.
 
-A simple verification flow is:
+`memory_status` is the main user-facing verification surface. It now reports:
+
+- whether the plugin is healthy,
+- the current background activity (`starting`, `waiting-for-idle`, `processing-session`, `backfilling`, `consolidating`, `refreshing-docs`, `idle`),
+- the configured cadence and toggles that control background behavior,
+- the last successful run times for memory capture, backfill, consolidation, and docs refresh,
+- the generated artifact paths and recent generated examples,
+- follow-up commands for verification and retrieval.
+
+Use this verification flow:
 
 1. work in OpenCode until the session becomes idle,
 2. ask OpenCode to use `memory_status`,
-3. confirm that memory counts and storage paths are populated.
+3. confirm that:
+   - health is good and `last error` is `none`,
+   - `current activity` returns to `idle` after work settles,
+   - `last memory capture` is recent,
+   - generated file counts are populated,
+   - recent generated examples match your recent work.
+
+## How to review the generated state
+
+These files give an explicit audit trail of what the plugin has done:
+
+- `.opencode/memory/private/status.json` — health, activity, cadence, counters, timestamps, last error
+- `.opencode/memory/private/state.json` — processed session hashes and internal bookkeeping
+- `.opencode/memory/shared/memories.json` — stored session summaries/facts/decisions/todos/topics
+- `.opencode/memory/shared/insights.json` — cross-memory consolidation output
+- `.opencode/memory/shared/project-docs.json` — indexed project docs used during retrieval
+
+If a user asks “is it working?”, the answer should be visible in both `memory_status` and these files.
 
 ## Back-process existing session data
 
@@ -128,6 +154,24 @@ memory_query
 ```
 
 That lets memory answers draw from session memory, consolidated insights, and indexed project docs.
+
+## How to evaluate whether memory retrieval is useful
+
+Test with a question about known prior work rather than exploring unknown areas first. For example:
+
+> Run `memory_query` for prior decisions about auth, deployment, or testing in this project and show the citations.
+
+Good retrieval should:
+
+- answer with relevant `[Memory:*]`, `[Insight:*]`, or `[Doc:*]` citations,
+- reflect decisions or docs that you can verify in the generated files,
+- improve the next task by reducing repeated discovery work.
+
+To leverage it in a new task, explicitly chain it into the prompt:
+
+> Before planning this task, run `memory_query` for prior decisions about the same area, summarize the answer, and use that context in the implementation plan.
+
+If the retrieval is thin or stale, run `memory_backfill`, `memory_consolidate`, and `memory_refresh_docs`, then repeat the same query and compare the result.
 
 ## Local repository development
 

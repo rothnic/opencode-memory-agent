@@ -15,16 +15,28 @@ const EMPTY_STATE = {
 const EMPTY_STATUS = {
   version: 1,
   initializedAt: null,
+  lastActivityAt: null,
   lastEvent: null,
   lastRun: null,
   lastBackfillAt: null,
+  lastBackfillProcessed: 0,
   lastConsolidationAt: null,
+  lastConsolidationGenerated: 0,
   lastDocsRefreshAt: null,
+  lastDocsRefreshCount: 0,
   processedSessionCount: 0,
   memoryCount: 0,
   insightCount: 0,
   docsCount: 0,
-  healthy: true
+  healthy: true,
+  currentActivity: 'idle',
+  lastError: null,
+  runtime: {
+    activeSessions: 0,
+    scheduledSessions: 0,
+    internalSessions: 0,
+    consolidationTimerActive: false
+  }
 };
 
 export async function ensureStore(config) {
@@ -127,6 +139,22 @@ export async function getStatus(config) {
     docsCount: docs.docs.length,
     processedSessionCount: Object.keys(state.processedSessions ?? {}).length,
     storage: config.paths,
-    docsEnabled: config.docs.enabled
+    docsEnabled: config.docs.enabled,
+    configuration: {
+      enabled: config.enabled,
+      debounceMs: config.debounceMs,
+      processSessionIdle: config.processSessionIdle,
+      maxBackfillSessions: config.maxBackfillSessions,
+      backfillOnStartup: config.backfillOnStartup,
+      consolidateEveryMinutes: config.consolidateEveryMinutes,
+      consolidateOnStartup: config.consolidateOnStartup,
+      statusToast: config.statusToast,
+      docs: {
+        enabled: config.docs.enabled,
+        autoRefreshOnStartup: config.docs.autoRefreshOnStartup,
+        autoRefreshOnEdit: config.docs.autoRefreshOnEdit,
+        includeCount: config.docs.include.length
+      }
+    }
   };
 }
