@@ -7,13 +7,13 @@ description: Reference map for translating the Gemini always-on memory design in
 
 | Reference project concept | OpenCode-first replacement |
 | --- | --- |
-| ADK agent orchestration | Built-in + custom OpenCode agents |
-| Gemini model calls | OpenCode-configured provider/model per agent |
-| Python app loop | Plugin hooks and optionally Bun-managed subprocesses |
+| ADK agent orchestration | Installable OpenCode plugin with internal SDK sessions |
+| Gemini model calls | OpenCode-configured provider/model used by the plugin's internal prompts |
+| Python app loop | Plugin hooks plus optional Bun-managed subprocesses |
 | Direct process logging | `client.app.log()` |
 | File watcher inbox | OpenCode file/session events and project watcher config |
-| HTTP query endpoint | OpenCode session prompt flow or future custom tool/server layer |
-| Single `memory.db` file | Shared redacted memory + local private cache |
+| HTTP query endpoint | `memory_query` custom tool backed by stored memory + indexed docs |
+| Single `memory.db` file | `.opencode/memory/shared/*.json` + `.opencode/memory/private/*.json` |
 
 ## Why this mapping works
 
@@ -28,11 +28,11 @@ That removes the need to recreate a parallel agent runtime just to get persisten
 
 ## Practical interpretation
 
-The plugin should stay small. Its main job is to:
+The plugin stays responsible for orchestration and storage. Its main jobs are to:
 
 - detect when a memory pass is worth running,
 - debounce repeated triggers,
-- dispatch the right memory agent,
+- create short-lived internal SDK sessions for summarization/query work,
 - store only curated memory artifacts.
 
-The agents should do the reasoning. The plugin should do the scheduling and guardrails.
+That keeps the installed package self-contained while still using OpenCode-native model execution.

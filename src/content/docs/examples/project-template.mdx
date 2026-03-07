@@ -1,14 +1,10 @@
 ---
-title: Project Template
-description: Files included in the initial local plugin and agent template.
+title: Project Config Example
+description: Example OpenCode configuration for installing and configuring the published plugin.
 ---
 
-The example project template lives in `examples/project-template/` and demonstrates:
-
-- project-level OpenCode configuration,
-- local markdown-defined agents,
-- a debounced plugin hook,
-- memory storage boundaries.
+The `examples/project-template/` directory now shows how a project references the published npm
+plugin instead of embedding a local plugin file.
 
 ### Included files
 
@@ -17,11 +13,13 @@ examples/project-template/
 ├── .gitignore
 ├── opencode.jsonc
 └── .opencode/
-    ├── agents/
-    │   ├── memory-consolidate.md
-    │   ├── memory-ingest.md
-    │   ├── memory-orchestrator.md
-    │   └── memory-query.md
-    └── plugins/
-        └── memory-agent.js
+    └── memory/
+        └── config.json
 ```
+
+### What it demonstrates
+
+- adding `opencode-memory-agent` to the OpenCode `plugin` config,
+- optionally pinning a version with `opencode-memory-agent@0.1.0`,
+- configuring debounce, startup behavior, and indexed docs,
+- keeping `.opencode/memory/private/` out of Git.

@@ -1,48 +1,47 @@
 ---
 title: Storage and Security
-description: Recommended memory layout, multi-machine behavior, and secret-handling rules.
+description: Actual storage files, multi-machine guidance, and secret-handling rules for the installable plugin.
 ---
 
-## Recommended layout
+## Storage files
 
 ```text
-.opencode/
-  memory/
-    shared/
-      facts/
-      summaries/
-    private/
-      raw/
-      cache/
+.opencode/memory/
+  shared/
+    memories.json
+    project-docs.json
+  private/
+    state.json
+    status.json
 ```
 
-## What belongs in shared memory
+### Shared files
 
-Commit only material that is safe and useful across machines:
+- `memories.json` stores curated session memory entries.
+- `project-docs.json` stores indexed project documentation metadata and excerpts.
 
-- redacted facts,
-- durable decisions,
-- summarized context,
-- links to source files instead of copied secret-bearing content.
+These files are designed to be **portable and reviewable**. Teams can commit them intentionally if
+that matches their workflow.
 
-## What belongs in private memory
+### Private files
 
-Keep these ignored locally:
+- `state.json` tracks processed session hashes and last-run markers.
+- `status.json` exposes health and activity signals for local verification.
 
-- raw model responses,
-- temporary consolidation artifacts,
-- provider-specific cache,
-- anything derived from secrets or local-only files.
+These files are better kept local because they contain operational metadata rather than durable
+project knowledge.
 
 ## Secret handling rules
 
-- Never read `.env` as part of memory ingestion.
-- Never store raw credentials in shared memory.
-- Prefer OpenCode config variables such as `{env:VAR}` and `{file:...}`.
-- Prefer logging event metadata and counts instead of raw captured content.
+The plugin is opinionated about secret safety:
 
-## Cross-machine workflow
+- it refuses direct `.env` reads through the `tool.execute.before` hook,
+- it asks the model to redact secrets when extracting memory,
+- it stores summaries and curated facts instead of raw session dumps,
+- it keeps operational state separate from shared memory.
 
-A developer can move between machines by syncing the repository and then rebuilding only the local
-private cache. The committed shared memory provides continuity, while the ignored private cache keeps
-sensitive or machine-specific material local.
+## Multi-machine workflow
+
+A user can sync shared memory across machines by carrying the repository forward, while rebuilding
+local private state as needed. This gives cross-machine continuity without sharing transient caches
+or raw session artifacts.

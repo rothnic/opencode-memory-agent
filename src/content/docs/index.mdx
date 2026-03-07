@@ -1,15 +1,15 @@
 ---
 title: OpenCode Memory Agent
-description: Research-backed outline for an OpenCode-first always-on memory plugin, agent layout, and publishing workflow.
+description: Installable OpenCode plugin for persistent session memory, project-doc indexing, and backlog processing.
 template: splash
 hero:
-  tagline: Replace the Gemini-specific always-on memory pattern with an OpenCode-native plugin, agent, and docs foundation.
+  tagline: Install `opencode-memory-agent` from npm, add it to OpenCode plugin config, and get durable memory, backfill tools, and project-doc indexing without cloning this repo.
   actions:
-    - text: Read the architecture outline
-      link: /guides/opencode-memory-agent-outline/
-      icon: right-arrow
-    - text: Review install, development, and publishing
+    - text: Install and configure the plugin
       link: /guides/install-develop-publish/
+      icon: right-arrow
+    - text: Review runtime architecture
+      link: /guides/opencode-memory-agent-outline/
       icon: external
       variant: minimal
 ---
@@ -19,20 +19,20 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 ## What is included
 
 <CardGrid stagger>
-  <Card title="OpenCode-first architecture" icon="seti:config">
-    Maps the Gemini always-on memory agent concepts onto OpenCode plugins, agents, SDK calls,
-    and event hooks.
+  <Card title="Installable npm plugin" icon="package">
+    The root package now exports a real OpenCode plugin entrypoint that can be referenced by package
+    name in `opencode.json`.
   </Card>
-  <Card title="Bun-forward plugin workflow" icon="package">
-    Outlines local plugin development, npm installation through OpenCode, and guarded
-    background work using Bun-native subprocesses.
+  <Card title="Memory + backlog tools" icon="list-tree">
+    The plugin captures session memory on idle, exposes `memory_status`, `memory_backfill`,
+    `memory_query`, and `memory_refresh_docs`, and persists state in `.opencode/memory/`.
   </Card>
-  <Card title="Docs site + GitHub Pages" icon="open-book">
-    Provides an Astro Starlight documentation site with Mermaid diagrams rendered at build time
-    as static SVGs.
+  <Card title="Project docs indexing" icon="open-book">
+    Common documentation files such as `README.md`, `AGENTS.md`, and `docs/**/*.mdx` are indexed
+    for later memory queries.
   </Card>
-  <Card title="Security and storage guidance" icon="shield-check">
-    Recommends a split between shared redacted memory and local private state to avoid leaking
-    secrets across machines.
+  <Card title="Docs site + GitHub Pages" icon="earth">
+    This repository still publishes its documentation with Astro Starlight and build-time Mermaid
+    SVG rendering.
   </Card>
 </CardGrid>

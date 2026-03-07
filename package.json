@@ -1,17 +1,47 @@
 {
   "name": "opencode-memory-agent",
-  "version": "0.0.1",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Installable OpenCode plugin that captures durable session memory, backfills prior sessions, and indexes project docs.",
   "type": "module",
+  "main": "./plugin/index.js",
+  "exports": {
+    ".": "./plugin/index.js"
+  },
+  "files": [
+    "plugin",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "opencode",
+    "plugin",
+    "memory",
+    "agent",
+    "bun"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rothnic/opencode-memory-agent.git"
+  },
+  "homepage": "https://rothnic.github.io/opencode-memory-agent/",
+  "bugs": {
+    "url": "https://github.com/rothnic/opencode-memory-agent/issues"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "validate": "npm run build"
+    "test": "node --test",
+    "validate": "npm test && npm run build"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.37.7",
+    "@opencode-ai/plugin": "^1.2.20",
     "astro": "^5.18.0",
     "hast-util-from-html": "^2.0.3",
     "hast-util-to-html": "^9.0.5",

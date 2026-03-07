@@ -10,7 +10,7 @@ export default defineConfig({
     starlight({
       title: 'OpenCode Memory Agent',
       description:
-        'Initial OpenCode-first research, plugin template, and docs for a persistent memory agent workflow.',
+        'Installable OpenCode plugin and docs for persistent session memory, backlog processing, and project-doc indexing.',
       social: [
         {
           icon: 'github',

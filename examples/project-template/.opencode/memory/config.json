@@ -1,0 +1,15 @@
+{
+  "backfillOnStartup": false,
+  "debounceMs": 8000,
+  "docs": {
+    "enabled": true,
+    "autoRefreshOnStartup": true,
+    "autoRefreshOnEdit": true,
+    "include": [
+      "README.md",
+      "AGENTS.md",
+      "docs/**/*.md",
+      "docs/**/*.mdx"
+    ]
+  }
+}

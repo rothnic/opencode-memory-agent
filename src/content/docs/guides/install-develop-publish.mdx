@@ -1,40 +1,11 @@
 ---
 title: Install, Develop, Publish
-description: Basic workflow for local development, npm installation, CI/CD, and GitHub Pages publishing.
+description: How to install the npm plugin in OpenCode, configure it, verify it is working, and publish this repo.
 ---
 
-## Local development workflow
+## Install in OpenCode
 
-1. Install dependencies:
-
-```bash
-npm install
-npx playwright install --with-deps chromium
-```
-
-2. Start the docs site:
-
-```bash
-npm run dev
-```
-
-3. Use the example project template under `examples/project-template/` to iterate on:
-
-- project-level OpenCode agents,
-- plugin event handling,
-- memory directory layout,
-- local `.gitignore` boundaries.
-
-## Bun-forward plugin workflow
-
-OpenCode installs npm plugins with **Bun at startup**. That means the recommended path is:
-
-1. develop the plugin locally in a project or global `.opencode/plugins/` directory,
-2. stabilize the hook behavior and agent prompts,
-3. publish the plugin to npm,
-4. let users enable it from `opencode.json` with a `plugin` entry.
-
-Example npm install configuration:
+Add the plugin package name to your OpenCode config:
 
 ```json
 {
@@ -43,61 +14,128 @@ Example npm install configuration:
 }
 ```
 
-## Project vs global configuration
+To pin a version, use an npm package specifier string:
 
-Use **project config** for repository-specific memory behavior, such as:
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["opencode-memory-agent@0.1.0"]
+}
+```
 
-- which agent names are available,
-- where shared memory lives,
-- which directories the watcher ignores,
-- whether memory should run at all for the project.
+OpenCode installs npm plugins with Bun at startup, so the user workflow is:
 
-Use **global config** for user-level defaults, such as:
+1. add the plugin specifier to `opencode.json`,
+2. restart or start OpenCode,
+3. let OpenCode install the package automatically.
 
-- provider credentials,
-- preferred model defaults,
-- personal logging or notification preferences.
+## Configure the plugin
 
-Because OpenCode merges config layers, the project can supply safe defaults without owning the
-user's secrets.
+Use either:
 
-## Environment variables
+- project config: `.opencode/memory/config.json`
+- global config: `~/.config/opencode/opencode-memory-agent.json`
+- optional override path: `OPENCODE_MEMORY_AGENT_CONFIG`
 
-If credentials are needed, keep them outside the repository:
+Example project config:
 
-- use OpenCode provider config,
-- use `{env:VAR_NAME}` indirection,
-- or use `{file:~/.secrets/...}` indirection.
+```json
+{
+  "debounceMs": 8000,
+  "backfillOnStartup": false,
+  "statusToast": true,
+  "docs": {
+    "enabled": true,
+    "autoRefreshOnStartup": true,
+    "autoRefreshOnEdit": true,
+    "include": [
+      "README.md",
+      "AGENTS.md",
+      "docs/**/*.md",
+      "docs/**/*.mdx"
+    ]
+  }
+}
+```
 
-Do **not** store provider keys in shared memory files, example configs committed to Git, or plugin
-logs.
+## How to know the plugin is working
 
-## CI workflow
+After OpenCode starts with the plugin enabled, you should see all of the following:
 
-This repository includes a lightweight CI workflow that:
+- logs written through `client.app.log()` with service `opencode-memory-agent`,
+- `.opencode/memory/private/status.json`,
+- `.opencode/memory/shared/memories.json`,
+- `memory_status` available as a custom tool,
+- optional toast messages when new session memory is captured.
 
-1. installs npm dependencies,
-2. installs the Playwright Chromium dependency needed by `rehype-mermaid`,
-3. runs `npm run validate` (currently an Astro production build).
+A simple verification flow is:
 
-That keeps validation aligned with the current repository scope: documentation buildability and static asset generation.
+1. work in OpenCode until the session becomes idle,
+2. ask OpenCode to use `memory_status`,
+3. confirm that memory counts and storage paths are populated.
 
-## Publishing workflow
+## Back-process existing session data
 
-There are two publish targets:
+Use the custom tool:
+
+```text
+memory_backfill
+```
+
+Recommended prompt to OpenCode:
+
+> Use `memory_backfill` with `refresh_docs=true` and `limit=20`, then show me `memory_status`.
+
+The plugin keeps a content hash per processed session in `.opencode/memory/private/state.json`, so
+re-running backfill only updates sessions whose content changed.
+
+## Project docs support
+
+By default the plugin indexes these project-doc patterns:
+
+- `README.md`
+- `AGENTS.md`
+- `CONTRIBUTING.md`
+- `CHANGELOG.md`
+- `docs/**/*.md`
+- `docs/**/*.mdx`
+- `.opencode/agents/**/*.md`
+
+Refresh docs at any time with:
+
+```text
+memory_refresh_docs
+```
+
+Then ask a question with:
+
+```text
+memory_query
+```
+
+That lets memory answers draw from both session memory and indexed project docs.
+
+## Local repository development
+
+```bash
+npm install
+npx playwright install --with-deps chromium
+npm run validate
+npm run dev
+```
+
+## Publishing workflow for this repository
 
 ### npm plugin package
 
-This repository documents the package publishing path, but does not automate an npm release yet.
-A future release workflow should:
+This repository's root package is now the publishable npm plugin package. A release should:
 
-1. run the same validation steps as CI,
-2. create a versioned package artifact,
-3. publish only from a protected branch or tag,
-4. publish provenance metadata if supported.
+1. run `npm run validate`,
+2. run `npm pack --dry-run`,
+3. publish from a protected branch or tag,
+4. verify the package exports `plugin/index.js`.
 
-### GitHub Pages documentation
+### GitHub Pages docs
 
-The included Pages workflow builds the Astro Starlight site and deploys it from GitHub Actions.
-Mermaid diagrams are rendered at build time, so the published site serves static SVG output instead
-of client-side diagram rendering.
+The docs site still publishes through GitHub Pages. Mermaid diagrams are rendered at build time, so
+published diagrams are static SVGs.
