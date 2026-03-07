@@ -63,8 +63,8 @@ export const MemoryAgentPlugin = async ({ client, directory }) => {
 
       schedule(sessionId, event.type);
     },
-    'tool.execute.before': async (input, output) => {
-      if (input.tool === 'read' && output.args.filePath?.includes('.env')) {
+    'tool.execute.before': async (input, context) => {
+      if (input.tool === 'read' && context.args.filePath?.includes('.env')) {
         throw new Error('The memory agent should not read .env files directly.');
       }
     },
