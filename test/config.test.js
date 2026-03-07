@@ -10,7 +10,11 @@ test('loadPluginConfig merges project config over defaults', async () => {
   await mkdir(join(root, '.opencode', 'memory'), { recursive: true });
   await writeFile(
     join(root, '.opencode', 'memory', 'config.json'),
-    JSON.stringify({ debounceMs: 5000, docs: { maxFiles: 5 }, storage: { baseDir: '.custom-memory' } })
+    JSON.stringify(
+      { debounceMs: 5000, docs: { maxFiles: 5 }, storage: { baseDir: '.custom-memory' } },
+      null,
+      2
+    )
   );
 
   const config = await loadPluginConfig(root);

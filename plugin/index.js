@@ -16,6 +16,11 @@ import {
 import { answerMemoryQuery, createMemoryEntry, flattenSessionMessages } from './lib/memory-processing.js';
 
 const RELEVANT_EVENTS = new Set(['session.idle', 'file.edited', 'message.updated', 'todo.updated', 'server.connected']);
+const INTERNAL_SESSION_PREFIX = '[opencode-memory-agent]';
+
+function isProtectedEnvPath(filePath) {
+  return /(^|\/)\.env(\.[^/]+)?$/i.test(String(filePath ?? '').replace(/\\/g, '/'));
+}
 
 function unwrapData(response) {
   if (Array.isArray(response)) {
@@ -172,7 +177,7 @@ export async function createMemoryAgentPlugin({ client, directory, worktree }) {
       if (processed >= limit) {
         break;
       }
-      if (!session?.id || internalSessions.has(session.id) || String(session.title ?? '').startsWith('[opencode-memory-agent]')) {
+      if (!session?.id || internalSessions.has(session.id) || String(session.title ?? '').startsWith(INTERNAL_SESSION_PREFIX)) {
         continue;
       }
       const result = await processSession(session.id, 'backfill', false);
@@ -261,7 +266,13 @@ export async function createMemoryAgentPlugin({ client, directory, worktree }) {
       }
 
       const sessionId = event.properties?.sessionID ?? event.properties?.sessionId;
-      if (sessionId && !internalSessions.has(sessionId) && event.type !== 'file.edited' && config.processSessionIdle) {
+      const canScheduleSessionProcessing =
+        Boolean(sessionId) &&
+        !internalSessions.has(sessionId) &&
+        event.type !== 'file.edited' &&
+        config.processSessionIdle;
+
+      if (canScheduleSessionProcessing) {
         scheduleSession(sessionId, event.type);
       }
 
@@ -325,7 +336,7 @@ export async function createMemoryAgentPlugin({ client, directory, worktree }) {
       })
     },
     'tool.execute.before': async (input, context) => {
-      if (input.tool === 'read' && context.args?.filePath?.includes('.env')) {
+      if (input.tool === 'read' && isProtectedEnvPath(context.args?.filePath)) {
         throw new Error('opencode-memory-agent refuses to read .env files directly.');
       }
     }

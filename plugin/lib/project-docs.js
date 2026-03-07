@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, open, stat } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
 const DEFAULT_IGNORES = new Set(['.git', 'node_modules', 'dist', '.astro']);
+const MAX_HEADINGS_PER_DOC = 12;
 
 function toPatternRegex(pattern) {
   const escaped = pattern
@@ -30,7 +31,7 @@ function extractHeadings(content) {
     .split(/\r?\n/)
     .filter((line) => /^#{1,6}\s+/.test(line))
     .map((line) => line.replace(/^#{1,6}\s+/, '').trim())
-    .slice(0, 12);
+    .slice(0, MAX_HEADINGS_PER_DOC);
 }
 
 function extractTitle(relativePath, headings) {
@@ -78,8 +79,11 @@ export async function scanProjectDocs(config) {
   for (const file of limitedFiles) {
     const stats = await stat(file.absolutePath);
     const bytes = Math.min(stats.size, config.docs.maxBytesPerFile);
-    const content = await readFile(file.absolutePath, 'utf8');
-    const truncated = content.slice(0, config.docs.maxBytesPerFile);
+    const handle = await open(file.absolutePath, 'r');
+    const buffer = Buffer.alloc(bytes);
+    await handle.read(buffer, 0, bytes, 0);
+    await handle.close();
+    const truncated = buffer.toString('utf8');
     const headings = extractHeadings(truncated);
 
     docs.push({

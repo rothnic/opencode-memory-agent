@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto';
 import { parseModel } from './config.js';
 
+const ROLE_PREFIX = /^(USER|ASSISTANT|SYSTEM):\s*/i;
+const INTERNAL_SESSION_PREFIX = '[opencode-memory-agent]';
+const MAX_QUERY_MEMORIES = 8;
+const MAX_QUERY_DOCS = 8;
+
 function unwrapData(response) {
   if (Array.isArray(response)) {
     return response;
@@ -43,11 +48,12 @@ export function flattenSessionMessages(messagePayload, config) {
     return texts.map((text) => `${role.toUpperCase()}: ${text}`);
   });
 
-  const transcript = transcriptLines.join('\n').slice(-config.maxTranscriptChars);
+  const transcriptChars = Array.from(transcriptLines.join('\n'));
+  const normalizedTranscript = transcriptChars.slice(-config.maxTranscriptChars).join('');
   return {
-    transcript,
+    transcript: normalizedTranscript,
     messageCount: recentMessages.length,
-    contentHash: createHash('sha256').update(transcript).digest('hex')
+    contentHash: createHash('sha256').update(normalizedTranscript).digest('hex')
   };
 }
 
@@ -138,7 +144,7 @@ export async function createMemoryEntry({ client, config, internalSessions, sess
     const structured = await withInternalSession({
       client,
       internalSessions,
-      title: `[opencode-memory-agent] summarize ${sessionId}`,
+      title: `${INTERNAL_SESSION_PREFIX} summarize ${sessionId}`,
       model,
       task: async (internalSessionId, selectedModel) => {
         const body = {
@@ -175,7 +181,7 @@ export async function createMemoryEntry({ client, config, internalSessions, sess
 
   const heuristicLines = transcript
     .split(/\r?\n/)
-    .map((line) => line.replace(/^(USER|ASSISTANT|SYSTEM):\s*/i, '').trim())
+    .map((line) => line.replace(ROLE_PREFIX, '').trim())
     .filter(Boolean);
 
   return {
@@ -198,15 +204,15 @@ export async function createMemoryEntry({ client, config, internalSessions, sess
 }
 
 export async function answerMemoryQuery({ client, config, internalSessions, question, memories, docs }) {
-  const selectedMemories = memories.slice(0, 8);
-  const selectedDocs = docs.slice(0, 8);
+  const selectedMemories = memories.slice(0, MAX_QUERY_MEMORIES);
+  const selectedDocs = docs.slice(0, MAX_QUERY_DOCS);
   const model = parseModel(config.model);
 
   try {
     return await withInternalSession({
       client,
       internalSessions,
-      title: '[opencode-memory-agent] query',
+      title: `${INTERNAL_SESSION_PREFIX} query`,
       model,
       task: async (sessionId, selectedModel) => {
         const body = {

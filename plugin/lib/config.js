@@ -96,8 +96,16 @@ export function parseModel(model) {
   };
 }
 
+function getGlobalConfigPath() {
+  if (process.platform === 'win32' && process.env.APPDATA) {
+    return join(process.env.APPDATA, 'opencode', 'opencode-memory-agent.json');
+  }
+
+  return join(homedir(), '.config', 'opencode', 'opencode-memory-agent.json');
+}
+
 export async function loadPluginConfig(projectRoot) {
-  const globalPath = join(homedir(), '.config', 'opencode', 'opencode-memory-agent.json');
+  const globalPath = getGlobalConfigPath();
   const projectPath = join(projectRoot, '.opencode', 'memory', 'config.json');
   const customPath = process.env.OPENCODE_MEMORY_AGENT_CONFIG;
 
