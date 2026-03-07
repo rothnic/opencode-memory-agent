@@ -5,15 +5,15 @@ description: Runtime architecture for the installable OpenCode memory plugin.
 
 ## Goal
 
-The Gemini always-on memory example keeps a persistent memory process running beside the agent. This
-package turns that into an **installable OpenCode plugin** that users can enable directly from npm.
+`opencode-memory-agent` is an installable OpenCode plugin for persistent session memory,
+cross-session insights, project-doc indexing, and status visibility.
 
-## What the package now does
+## Capabilities
 
 | Capability | Implementation in `opencode-memory-agent` |
 | --- | --- |
 | Install from plugin config | npm package export from `plugin/index.js` |
-| Memory ingest | Debounced processing of OpenCode session events with an IngestAgent-style prompt |
+| Memory ingest | Debounced processing of OpenCode session events |
 | Periodic consolidation | Default 30-minute consolidation timer plus `memory_consolidate` |
 | Memory store | `.opencode/memory/shared/memories.json` |
 | Consolidation store | `.opencode/memory/shared/insights.json` |
@@ -43,32 +43,8 @@ flowchart TD
     N[memory_query tool] --> R[Answer from memories + insights + docs]
 ```
 
-## Why this reproduces the Gemini example
-
-The Gemini example had three major loops:
-
-1. **ingest new information**,
-2. **consolidate it into durable memory**, and
-3. **query it later**.
-
-This plugin reproduces those loops with OpenCode-native primitives:
-
-- **ingest**: watch `session.idle`, `message.updated`, `todo.updated`, and selected doc edits,
-- **consolidate**: run a dedicated consolidation pass every 30 minutes by default,
-- **query**: answer over the stored memories, consolidated insights, and indexed project docs.
-
-## Runtime differences from the Gemini daemon
-
-The Gemini reference runs as a standalone background service that watches an inbox folder, ingests
-files within roughly 5–10 seconds, and continues consolidating even when no user is actively
-interacting with it.
-
-This OpenCode version closes the most important behavioral gaps while still fitting OpenCode:
-
-- it uses OpenCode session and file events instead of a separate inbox daemon,
-- it now keeps a default **30-minute consolidation timer** while OpenCode is running,
-- it exposes `memory_consolidate` for the same kind of manual consolidation the Gemini dashboard/API offers,
-- it relies on `memory_backfill` and optional startup backfill to catch up after OpenCode was closed.
+For the reference Gemini architecture and OpenCode-specific differences, see
+[`Gemini Reference Architecture`](/reference/gemini-to-opencode-equivalents/).
 
 ## Storage layout
 
@@ -99,6 +75,3 @@ Project docs are indexed separately from session memory so that `memory_query` c
 - durable conversation memory,
 - consolidated cross-memory insights,
 - current project documentation.
-
-This mirrors the Gemini example's persistent knowledge layer without requiring users to upload docs
-manually into a separate system.

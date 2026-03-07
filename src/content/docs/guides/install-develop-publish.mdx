@@ -70,7 +70,7 @@ After OpenCode starts with the plugin enabled, you should see all of the followi
 - `memory_status` available as a custom tool,
 - optional toast messages when new session memory is captured.
 
-`memory_status` is the main user-facing verification surface. It now reports:
+`memory_status` is the main user-facing verification surface. It reports:
 
 - whether the plugin is healthy,
 - the current background activity (`starting`, `waiting-for-idle`, `processing-session`, `backfilling`, `consolidating`, `refreshing-docs`, `idle`),
@@ -117,17 +117,10 @@ Recommended prompt to OpenCode:
 The plugin keeps a content hash per processed session in `.opencode/memory/private/state.json`, so
 re-running backfill only updates sessions whose content changed.
 
-## Consolidation cadence vs. the Gemini reference
-
-The Gemini always-on memory project runs a separate **ConsolidateAgent** every **30 minutes** by
-default. This plugin now mirrors that behavior as closely as OpenCode allows:
-
-- it schedules consolidation every `consolidateEveryMinutes` minutes while OpenCode is running,
-- it can consolidate on startup with `consolidateOnStartup`,
-- it exposes a `memory_consolidate` tool for manual runs.
-
-Because this package runs inside OpenCode instead of as a standalone 24/7 daemon, it does not keep
-processing while OpenCode is fully closed. Use startup backfill and `memory_backfill` to catch up.
+The consolidation cadence is controlled by `consolidateEveryMinutes`, with optional startup
+consolidation through `consolidateOnStartup`. For the Gemini reference architecture and the runtime
+differences in this plugin, see
+[`Gemini Reference Architecture`](/reference/gemini-to-opencode-equivalents/).
 
 ## Project docs support
 
@@ -186,7 +179,7 @@ npm run dev
 
 ### npm plugin package
 
-This repository's root package is now the publishable npm plugin package. A release should:
+This repository's root package is the publishable npm plugin package. A release should:
 
 1. run `npm run validate`,
 2. run `npm pack --dry-run`,
@@ -195,5 +188,5 @@ This repository's root package is now the publishable npm plugin package. A rele
 
 ### GitHub Pages docs
 
-The docs site still publishes through GitHub Pages. Mermaid diagrams are rendered at build time, so
+The docs site publishes through GitHub Pages. Mermaid diagrams are rendered at build time, so
 published diagrams are static SVGs.

@@ -1,6 +1,7 @@
 # opencode-memory-agent
 
-`opencode-memory-agent` is an **installable OpenCode plugin package** that recreates the core workflow of the Gemini always-on memory example using OpenCode plugins, the OpenCode SDK, and Bun-installed npm plugins.
+`opencode-memory-agent` is an **installable OpenCode plugin package** for persistent session
+memory, cross-session insights, project-doc indexing, and verification tools inside OpenCode.
 
 It does four things out of the box:
 
@@ -133,23 +134,10 @@ Ask OpenCode to run the `memory_backfill` tool, for example:
 
 That processes older sessions without requiring any repo-local bootstrap script.
 
-## How this maps to the Gemini reference
+## Gemini reference notes
 
-The Gemini project runs as a 24/7 Python service that:
-
-- ingests new inbox/API content immediately,
-- auto-ingests dropped files within roughly 5–10 seconds,
-- consolidates every 30 minutes by default,
-- answers queries over both stored memories and consolidation insights.
-
-This OpenCode plugin closes the closest equivalent gaps inside the OpenCode runtime:
-
-- **ingest timing**: it captures memory after OpenCode activity becomes idle instead of watching an external inbox,
-- **consolidation cadence**: it now runs a default **30-minute consolidation timer** while OpenCode is running,
-- **manual consolidation**: `memory_consolidate` mirrors the Gemini project's explicit consolidate action,
-- **prompt roles**: internal prompts are now split into **IngestAgent**, **ConsolidateAgent**, and **QueryAgent** roles.
-
-Unlike the Gemini daemon, this plugin only runs while OpenCode is open, so `memory_backfill` and optional startup backfill help recover anything missed while OpenCode was not running.
+The docs site includes a single reference page that summarizes the Gemini reference architecture and
+the OpenCode-specific differences for this plugin.
 
 ## Project docs support
 

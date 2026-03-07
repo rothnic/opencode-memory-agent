@@ -1,38 +1,60 @@
 ---
-title: Gemini to OpenCode Equivalents
-description: Reference map for translating the Gemini always-on memory design into OpenCode primitives.
+title: Gemini Reference Architecture
+description: Concise overview of the Gemini reference implementation and the OpenCode-specific differences in this plugin.
 ---
 
-## Concept map
+## Overview
 
-| Reference project concept | OpenCode-first replacement |
+The Gemini reference project is an always-on memory system with three main responsibilities:
+
+1. ingest new information,
+2. consolidate stored memories on a cadence,
+3. answer later queries from the accumulated memory.
+
+`opencode-memory-agent` keeps that same high-level shape, but it runs as an installable OpenCode
+plugin instead of a standalone background service.
+
+## Architecture map
+
+| Gemini reference concept | `opencode-memory-agent` equivalent |
 | --- | --- |
 | ADK agent orchestration | Installable OpenCode plugin with internal SDK sessions |
 | Gemini model calls | OpenCode-configured provider/model used by the plugin's internal prompts |
-| Python app loop | Plugin hooks plus optional Bun-managed subprocesses |
+| Python app loop | Plugin event hooks and timers inside the OpenCode runtime |
 | Direct process logging | `client.app.log()` |
-| File watcher inbox | OpenCode file/session events and project watcher config |
+| File watcher inbox | OpenCode session events plus optional project-doc refresh on edits |
 | HTTP query endpoint | `memory_query` custom tool backed by stored memory + indexed docs |
-| Single `memory.db` file | `.opencode/memory/shared/*.json` + `.opencode/memory/private/*.json` |
+| Consolidation job | `consolidateEveryMinutes` timer and `memory_consolidate` tool |
+| Single memory store | `.opencode/memory/shared/*.json` + `.opencode/memory/private/*.json` |
 
-## Why this mapping works
+## Reference architecture
 
-OpenCode already provides:
+```mermaid
+flowchart TD
+    A[New activity or content] --> B[Ingest step]
+    B --> C[(Memory store)]
+    C --> D[Periodic consolidation]
+    D --> E[(Cross-memory insights)]
+    C --> F[Query path]
+    E --> F
+```
 
-- configurable agents,
-- event subscriptions inside plugins,
-- an SDK client for sessions, files, and logging,
-- tool and permission boundaries.
+In this repository, those same responsibilities are implemented with OpenCode-native pieces:
 
-That removes the need to recreate a parallel agent runtime just to get persistent memory behavior.
+- session and file events trigger memory ingestion,
+- stored memories are consolidated on a configurable timer,
+- queries combine memory entries, consolidated insights, and indexed project docs.
 
-## Practical interpretation
+## Differences that matter
 
-The plugin stays responsible for orchestration and storage. Its main jobs are to:
+The main runtime differences are:
 
-- detect when a memory pass is worth running,
-- debounce repeated triggers,
-- create short-lived internal SDK sessions for summarization/query work,
-- store only curated memory artifacts.
+- **Runtime model**: the Gemini reference runs as a standalone process; this plugin runs only while OpenCode is running.
+- **Ingest source**: the Gemini reference watches its own inputs; this plugin uses OpenCode events and optional backfill.
+- **Catch-up behavior**: this plugin relies on `memory_backfill` and optional startup processing to recover work that happened while OpenCode was closed.
+- **Storage format**: this plugin stores curated JSON artifacts in `.opencode/memory/` rather than a separate database format.
 
-That keeps the installed package self-contained while still using OpenCode-native model execution.
+## Where to look elsewhere in the docs
+
+- For installation and verification, see the install guide.
+- For the plugin's own runtime flow and storage layout, see the runtime architecture guide.
