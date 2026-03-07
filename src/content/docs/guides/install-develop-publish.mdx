@@ -1,0 +1,103 @@
+---
+title: Install, Develop, Publish
+description: Basic workflow for local development, npm installation, CI/CD, and GitHub Pages publishing.
+---
+
+## Local development workflow
+
+1. Install dependencies:
+
+```bash
+npm install
+npx playwright install --with-deps chromium
+```
+
+2. Start the docs site:
+
+```bash
+npm run dev
+```
+
+3. Use the example project template under `examples/project-template/` to iterate on:
+
+- project-level OpenCode agents,
+- plugin event handling,
+- memory directory layout,
+- local `.gitignore` boundaries.
+
+## Bun-forward plugin workflow
+
+OpenCode installs npm plugins with **Bun at startup**. That means the recommended path is:
+
+1. develop the plugin locally in a project or global `.opencode/plugins/` directory,
+2. stabilize the hook behavior and agent prompts,
+3. publish the plugin to npm,
+4. let users enable it from `opencode.json` with a `plugin` entry.
+
+Example npm install configuration:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["opencode-memory-agent"]
+}
+```
+
+## Project vs global configuration
+
+Use **project config** for repository-specific memory behavior, such as:
+
+- which agent names are available,
+- where shared memory lives,
+- which directories the watcher ignores,
+- whether memory should run at all for the project.
+
+Use **global config** for user-level defaults, such as:
+
+- provider credentials,
+- preferred model defaults,
+- personal logging or notification preferences.
+
+Because OpenCode merges config layers, the project can supply safe defaults without owning the
+user's secrets.
+
+## Environment variables
+
+If credentials are needed, keep them outside the repository:
+
+- use OpenCode provider config,
+- use `{env:VAR_NAME}` indirection,
+- or use `{file:~/.secrets/...}` indirection.
+
+Do **not** store provider keys in shared memory files, example configs committed to Git, or plugin
+logs.
+
+## CI workflow
+
+This repository includes a lightweight CI workflow that:
+
+1. installs npm dependencies,
+2. installs the Playwright Chromium dependency needed by `rehype-mermaid`,
+3. runs `npm run validate` (currently an Astro production build).
+
+That keeps validation aligned with the current repository scope: documentation buildability and static asset generation.
+
+## Publishing workflow
+
+There are two publish targets:
+
+### npm plugin package
+
+This repository documents the package publishing path, but does not automate an npm release yet.
+A future release workflow should:
+
+1. run the same validation steps as CI,
+2. create a versioned package artifact,
+3. publish only from a protected branch or tag,
+4. publish provenance metadata if supported.
+
+### GitHub Pages documentation
+
+The included Pages workflow builds the Astro Starlight site and deploys it from GitHub Actions.
+Mermaid diagrams are rendered at build time, so the published site serves static SVG output instead
+of client-side diagram rendering.

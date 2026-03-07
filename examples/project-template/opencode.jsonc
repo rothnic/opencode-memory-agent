@@ -1,0 +1,27 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "watcher": {
+    "ignore": [
+      ".opencode/memory/private/**",
+      ".opencode/memory/cache/**"
+    ]
+  },
+  "permission": {
+    "edit": "ask",
+    "bash": "ask"
+  },
+  "agent": {
+    "memory-orchestrator": {
+      "description": "Coordinates ingestion, consolidation, and query-oriented memory passes.",
+      "mode": "subagent",
+      "model": "anthropic/claude-sonnet-4-5",
+      "temperature": 0.2,
+      "permission": {
+        "task": {
+          "*": "deny",
+          "memory-*": "allow"
+        }
+      }
+    }
+  }
+}

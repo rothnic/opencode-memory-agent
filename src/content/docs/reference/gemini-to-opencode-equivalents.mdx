@@ -1,0 +1,38 @@
+---
+title: Gemini to OpenCode Equivalents
+description: Reference map for translating the Gemini always-on memory design into OpenCode primitives.
+---
+
+## Concept map
+
+| Reference project concept | OpenCode-first replacement |
+| --- | --- |
+| ADK agent orchestration | Built-in + custom OpenCode agents |
+| Gemini model calls | OpenCode-configured provider/model per agent |
+| Python app loop | Plugin hooks and optionally Bun-managed subprocesses |
+| Direct process logging | `client.app.log()` |
+| File watcher inbox | OpenCode file/session events and project watcher config |
+| HTTP query endpoint | OpenCode session prompt flow or future custom tool/server layer |
+| Single `memory.db` file | Shared redacted memory + local private cache |
+
+## Why this mapping works
+
+OpenCode already provides:
+
+- configurable agents,
+- event subscriptions inside plugins,
+- an SDK client for sessions, files, and logging,
+- tool and permission boundaries.
+
+That removes the need to recreate a parallel agent runtime just to get persistent memory behavior.
+
+## Practical interpretation
+
+The plugin should stay small. Its main job is to:
+
+- detect when a memory pass is worth running,
+- debounce repeated triggers,
+- dispatch the right memory agent,
+- store only curated memory artifacts.
+
+The agents should do the reasoning. The plugin should do the scheduling and guardrails.

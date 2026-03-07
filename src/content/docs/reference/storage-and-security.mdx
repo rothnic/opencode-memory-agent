@@ -1,0 +1,48 @@
+---
+title: Storage and Security
+description: Recommended memory layout, multi-machine behavior, and secret-handling rules.
+---
+
+## Recommended layout
+
+```text
+.opencode/
+  memory/
+    shared/
+      facts/
+      summaries/
+    private/
+      raw/
+      cache/
+```
+
+## What belongs in shared memory
+
+Commit only material that is safe and useful across machines:
+
+- redacted facts,
+- durable decisions,
+- summarized context,
+- links to source files instead of copied secret-bearing content.
+
+## What belongs in private memory
+
+Keep these ignored locally:
+
+- raw model responses,
+- temporary consolidation artifacts,
+- provider-specific cache,
+- anything derived from secrets or local-only files.
+
+## Secret handling rules
+
+- Never read `.env` as part of memory ingestion.
+- Never store raw credentials in shared memory.
+- Prefer OpenCode config variables such as `{env:VAR}` and `{file:...}`.
+- Prefer logging event metadata and counts instead of raw captured content.
+
+## Cross-machine workflow
+
+A developer can move between machines by syncing the repository and then rebuilding only the local
+private cache. The committed shared memory provides continuity, while the ignored private cache keeps
+sensitive or machine-specific material local.

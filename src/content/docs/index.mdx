@@ -1,0 +1,38 @@
+---
+title: OpenCode Memory Agent
+description: Research-backed outline for an OpenCode-first always-on memory plugin, agent layout, and publishing workflow.
+template: splash
+hero:
+  tagline: Replace the Gemini-specific always-on memory pattern with an OpenCode-native plugin, agent, and docs foundation.
+  actions:
+    - text: Read the architecture outline
+      link: /guides/opencode-memory-agent-outline/
+      icon: right-arrow
+    - text: Review install, development, and publishing
+      link: /guides/install-develop-publish/
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## What is included
+
+<CardGrid stagger>
+  <Card title="OpenCode-first architecture" icon="seti:config">
+    Maps the Gemini always-on memory agent concepts onto OpenCode plugins, agents, SDK calls,
+    and event hooks.
+  </Card>
+  <Card title="Bun-forward plugin workflow" icon="package">
+    Outlines local plugin development, npm installation through OpenCode, and guarded
+    background work using Bun-native subprocesses.
+  </Card>
+  <Card title="Docs site + GitHub Pages" icon="open-book">
+    Provides an Astro Starlight documentation site with Mermaid diagrams rendered at build time
+    as static SVGs.
+  </Card>
+  <Card title="Security and storage guidance" icon="shield-check">
+    Recommends a split between shared redacted memory and local private state to avoid leaking
+    secrets across machines.
+  </Card>
+</CardGrid>

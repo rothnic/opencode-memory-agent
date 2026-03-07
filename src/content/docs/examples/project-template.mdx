@@ -1,0 +1,27 @@
+---
+title: Project Template
+description: Files included in the initial local plugin and agent template.
+---
+
+The example project template lives in `examples/project-template/` and demonstrates:
+
+- project-level OpenCode configuration,
+- local markdown-defined agents,
+- a debounced plugin hook,
+- memory storage boundaries.
+
+### Included files
+
+```text
+examples/project-template/
+├── .gitignore
+├── opencode.jsonc
+└── .opencode/
+    ├── agents/
+    │   ├── memory-consolidate.md
+    │   ├── memory-ingest.md
+    │   ├── memory-orchestrator.md
+    │   └── memory-query.md
+    └── plugins/
+        └── memory-agent.js
+```
