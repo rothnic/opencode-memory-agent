@@ -1,0 +1,199 @@
+---
+title: Install, Develop, Publish
+description: How to install the npm plugin in OpenCode, configure it, verify it is working, and publish this repo.
+---
+
+## Install in OpenCode
+
+Add the plugin package name to your OpenCode config:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["opencode-memory-agent"]
+}
+```
+
+To pin a version, use an npm package specifier string:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["opencode-memory-agent@0.1.0"]
+}
+```
+
+OpenCode installs npm plugins with Bun at startup, so the user workflow is:
+
+1. add the plugin specifier to `opencode.json`,
+2. restart or start OpenCode,
+3. let OpenCode install the package automatically.
+
+## Configure the plugin
+
+Use either:
+
+- project config: `.opencode/memory/config.json`
+- global config: `~/.config/opencode/opencode-memory-agent.json`
+- optional override path: `OPENCODE_MEMORY_AGENT_CONFIG`
+
+Example project config:
+
+```json
+{
+  "debounceMs": 8000,
+  "backfillOnStartup": false,
+  "consolidateEveryMinutes": 30,
+  "statusToast": true,
+  "docs": {
+    "enabled": true,
+    "autoRefreshOnStartup": true,
+    "autoRefreshOnEdit": true,
+    "include": [
+      "README.md",
+      "AGENTS.md",
+      "docs/**/*.md",
+      "docs/**/*.mdx"
+    ]
+  }
+}
+```
+
+## How to know the plugin is working
+
+After OpenCode starts with the plugin enabled, you should see all of the following:
+
+- logs written through `client.app.log()` with service `opencode-memory-agent`,
+- `.opencode/memory/private/status.json`,
+- `.opencode/memory/shared/memory.db`,
+- `.opencode/memory/shared/memories.json`,
+- `.opencode/memory/shared/insights.json`,
+- `memory_status` available as a custom tool,
+- optional toast messages when new session memory is captured.
+
+`memory_status` is the main user-facing verification surface. It reports:
+
+- whether the plugin is healthy,
+- the current background activity (`starting`, `waiting-for-idle`, `processing-session`, `backfilling`, `consolidating`, `refreshing-docs`, `idle`),
+- the configured cadence and toggles that control background behavior,
+- the last successful run times for memory capture, backfill, consolidation, and docs refresh,
+- the generated artifact paths and recent generated examples,
+- follow-up commands for verification and retrieval.
+
+Use this verification flow:
+
+1. work in OpenCode until the session becomes idle,
+2. ask OpenCode to use `memory_status`,
+3. confirm that:
+   - health is good and `last error` is `none`,
+   - `current activity` returns to `idle` after work settles,
+   - `last memory capture` is recent,
+   - generated file counts are populated,
+   - recent generated examples match your recent work.
+
+## How to review the generated state
+
+These files give an explicit audit trail of what the plugin has done:
+
+- `.opencode/memory/shared/memory.db` — primary shared store for memories, insights, and indexed docs
+- `.opencode/memory/private/status.json` — health, activity, cadence, counters, timestamps, last error
+- `.opencode/memory/private/state.json` — processed session hashes and internal bookkeeping
+- `.opencode/memory/shared/memories.json` — mirrored session summaries/facts/decisions/todos/topics
+- `.opencode/memory/shared/insights.json` — mirrored cross-memory consolidation output
+- `.opencode/memory/shared/project-docs.json` — mirrored indexed project docs used during retrieval
+
+If a user asks “is it working?”, the answer should be visible in both `memory_status` and these files.
+
+## Back-process existing session data
+
+Use the custom tool:
+
+```text
+memory_backfill
+```
+
+Recommended prompt to OpenCode:
+
+> Use `memory_backfill` with `refresh_docs=true` and `limit=20`, then show me `memory_status`.
+
+The plugin keeps a content hash per processed session in `.opencode/memory/private/state.json`, so
+re-running backfill only updates sessions whose content changed.
+
+The consolidation cadence is controlled by `consolidateEveryMinutes`, with optional startup
+consolidation through `consolidateOnStartup`. For the Gemini reference architecture and the runtime
+differences in this plugin, see
+[`Gemini Reference Architecture`](/reference/gemini-to-opencode-equivalents/).
+
+## Project docs support
+
+By default the plugin indexes these project-doc patterns:
+
+- `README.md`
+- `AGENTS.md`
+- `CONTRIBUTING.md`
+- `CHANGELOG.md`
+- `docs/**/*.md`
+- `docs/**/*.mdx`
+- `.opencode/agents/**/*.md`
+
+Refresh docs at any time with:
+
+```text
+memory_refresh_docs
+```
+
+Then ask a question with:
+
+```text
+memory_query
+```
+
+That lets memory answers draw from session memory, consolidated insights, and indexed project docs.
+
+When the active session explicitly mentions a readable local project file, the ingest pass also
+loads a small excerpt from that file and includes it in the memory extraction context. This helps
+capture decisions that depend on nearby code or docs without requiring that every relevant file be
+part of the configured docs index.
+
+## How to evaluate whether memory retrieval is useful
+
+Test with a question about known prior work rather than exploring unknown areas first. For example:
+
+> Run `memory_query` for prior decisions about auth, deployment, or testing in this project and show the citations.
+
+Good retrieval should:
+
+- answer with relevant `[Memory:*]`, `[Insight:*]`, or `[Doc:*]` citations,
+- reflect decisions or docs that you can verify in the generated files,
+- improve the next task by reducing repeated discovery work.
+
+To leverage it in a new task, explicitly chain it into the prompt:
+
+> Before planning this task, run `memory_query` for prior decisions about the same area, summarize the answer, and use that context in the implementation plan.
+
+If the retrieval is thin or stale, run `memory_backfill`, `memory_consolidate`, and `memory_refresh_docs`, then repeat the same query and compare the result.
+
+## Local repository development
+
+```bash
+npm install
+npx playwright install --with-deps chromium
+npm run validate
+npm run dev
+```
+
+## Publishing workflow for this repository
+
+### npm plugin package
+
+This repository's root package is the publishable npm plugin package. A release should:
+
+1. run `npm run validate`,
+2. run `npm pack --dry-run`,
+3. publish from a protected branch or tag,
+4. verify the package exports `plugin/index.js`.
+
+### GitHub Pages docs
+
+The docs site publishes through GitHub Pages. Mermaid diagrams are rendered at build time, so
+published diagrams are static SVGs.

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "opencode-memory-agent@0.1.0"
+  ],
+  "watcher": {
+    "ignore": [
+      ".opencode/memory/private/**"
+    ]
+  },
+  "permission": {
+    "edit": "ask",
+    "bash": "ask"
+  }
+}

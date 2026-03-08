@@ -1,0 +1,83 @@
+---
+title: OpenCode Memory Agent Outline
+description: Runtime architecture for the installable OpenCode memory plugin.
+---
+
+## Goal
+
+`opencode-memory-agent` is an installable OpenCode plugin for persistent session memory,
+cross-session insights, project-doc indexing, and status visibility.
+
+## Capabilities
+
+| Capability | Implementation in `opencode-memory-agent` |
+| --- | --- |
+| Install from plugin config | npm package export from `plugin/index.js` |
+| Memory ingest | Debounced processing of OpenCode session events plus referenced-file loading for local text/code files mentioned in the session |
+| Periodic consolidation | Default 30-minute consolidation timer plus `memory_consolidate` |
+| Shared store | `.opencode/memory/shared/memory.db` |
+| Review artifacts | `.opencode/memory/shared/memories.json`, `.opencode/memory/shared/insights.json`, `.opencode/memory/shared/project-docs.json` |
+| Project-doc support | Indexed into the shared database and mirrored to `project-docs.json` |
+| Backlog processing | `memory_backfill` custom tool and optional startup backfill |
+| Status visibility | `memory_status`, `client.app.log()`, toast notifications, `status.json` |
+| Secret protection | `.env` read guard + redaction-focused prompts |
+
+## Runtime architecture
+
+```mermaid
+flowchart TD
+    A[OpenCode events] --> B[Plugin event hook]
+    B --> C{High signal?}
+    C -- no --> D[Ignore]
+    C -- yes --> E[Debounce by session]
+    E --> F[Fetch session messages via SDK]
+    F --> F2[Load referenced project files when mentioned]
+    F2 --> G[Create internal memory session]
+    G --> H[Structured memory extraction]
+    H --> I[(shared memory.db)]
+    O[30-minute timer] --> P[Consolidate stored memories]
+    P --> I
+    B --> J[Project docs refresh]
+    J --> I
+    L[memory_backfill tool] --> F
+    M[memory_consolidate tool] --> P
+    N[memory_query tool] --> R[Answer from memories + insights + docs]
+```
+
+For the reference Gemini architecture and OpenCode-specific differences, see
+[`Gemini Reference Architecture`](/reference/gemini-to-opencode-equivalents/).
+
+## Storage layout
+
+```text
+.opencode/memory/
+  shared/
+    memory.db
+    memories.json
+    insights.json
+    project-docs.json
+  private/
+    state.json
+    status.json
+```
+
+- `shared/` stores the primary SQLite memory database plus mirrored JSON artifacts that can move with the project.
+- `private/` tracks processing state and health signals that should typically stay local.
+
+## Back-processing existing data
+
+For existing repositories with long OpenCode history, use the `memory_backfill` tool. The plugin
+lists prior sessions through the SDK, skips already-processed sessions with the same content hash,
+and ingests only changed or new sessions.
+
+## Project docs support
+
+Project docs are indexed separately from session memory so that `memory_query` can answer using all three:
+
+- durable conversation memory,
+- consolidated cross-memory insights,
+- current project documentation.
+
+When the session transcript mentions readable local project files such as `README.md` or source
+files under the repository, the ingest path also loads small excerpts from those files and includes
+them in the memory extraction step.

@@ -1,0 +1,53 @@
+---
+title: Storage and Security
+description: Actual storage files, multi-machine guidance, and secret-handling rules for the installable plugin.
+---
+
+## Storage files
+
+```text
+.opencode/memory/
+  shared/
+    memory.db
+    memories.json
+    insights.json
+    project-docs.json
+  private/
+    state.json
+    status.json
+```
+
+### Shared files
+
+- `memory.db` is the primary shared store for memories, insights, and indexed docs.
+- `memories.json` mirrors curated session memory entries for inspection and review.
+- `insights.json` mirrors consolidation output derived across multiple memories.
+- `project-docs.json` mirrors indexed project documentation metadata and excerpts.
+
+The database gives the plugin the same broad storage shape as the Gemini reference implementation,
+while the JSON artifacts remain **portable and reviewable**. Teams can commit the shared store
+intentionally if that matches their workflow.
+
+### Private files
+
+- `state.json` tracks processed session hashes and last-run markers.
+- `status.json` exposes health and activity signals for local verification, including current activity, runtime counters, configured cadence, last successful runs, and the last error if one occurred.
+
+These files are better kept local because they contain operational metadata rather than durable
+project knowledge.
+
+## Secret handling rules
+
+The plugin is opinionated about secret safety:
+
+- it refuses direct `.env` reads through the `tool.execute.before` hook,
+- it asks the model to redact secrets when extracting memory,
+- it skips `.env` and generated memory files when loading referenced file context from a session,
+- it stores summaries and curated facts instead of raw session dumps,
+- it keeps operational state separate from shared memory.
+
+## Multi-machine workflow
+
+A user can sync shared memory across machines by carrying the repository forward, while rebuilding
+local private state as needed. This gives cross-machine continuity without sharing transient caches
+or raw session artifacts.

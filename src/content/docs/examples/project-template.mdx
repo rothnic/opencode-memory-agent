@@ -1,0 +1,25 @@
+---
+title: Project Config Example
+description: Example OpenCode configuration for installing and configuring the published plugin.
+---
+
+The `examples/project-template/` directory shows how a project references the published npm plugin
+instead of embedding a local plugin file.
+
+### Included files
+
+```text
+examples/project-template/
+├── .gitignore
+├── opencode.jsonc
+└── .opencode/
+    └── memory/
+        └── config.json
+```
+
+### What it demonstrates
+
+- adding `opencode-memory-agent` to the OpenCode `plugin` config,
+- optionally pinning a version with `opencode-memory-agent@0.1.0`,
+- configuring debounce, startup behavior, and indexed docs,
+- keeping `.opencode/memory/private/` out of Git.

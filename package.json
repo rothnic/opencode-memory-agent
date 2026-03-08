@@ -1,0 +1,61 @@
+{
+  "name": "opencode-memory-agent",
+  "version": "0.1.0",
+  "description": "Installable OpenCode plugin that captures durable session memory, backfills prior sessions, and indexes project docs.",
+  "type": "module",
+  "main": "./plugin/index.js",
+  "exports": {
+    ".": "./plugin/index.js"
+  },
+  "files": [
+    "plugin",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "opencode",
+    "plugin",
+    "memory",
+    "agent",
+    "bun"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rothnic/opencode-memory-agent.git"
+  },
+  "author": {
+    "name": "Nick Roth",
+    "url": "https://www.nickroth.com"
+  },
+  "homepage": "https://rothnic.github.io/opencode-memory-agent/",
+  "bugs": {
+    "url": "https://github.com/rothnic/opencode-memory-agent/issues"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "test": "node --test",
+    "validate": "npm test && npm run build"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.37.7",
+    "@catppuccin/starlight": "^1.1.1",
+    "@opencode-ai/plugin": "^1.2.20",
+    "astro": "^5.18.0",
+    "hast-util-from-html": "^2.0.3",
+    "hast-util-to-html": "^9.0.5",
+    "rehype-mermaid": "^3.0.0",
+    "sharp": "^0.34.2",
+    "svgo": "^4.0.1",
+    "unist-util-visit": "^5.1.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.58.2"
+  }
+}

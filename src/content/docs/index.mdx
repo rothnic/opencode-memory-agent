@@ -1,0 +1,55 @@
+---
+title: OpenCode Memory Agent
+description: Installable OpenCode plugin for persistent session memory, project-doc indexing, and backlog processing.
+template: splash
+hero:
+  tagline: Install `opencode-memory-agent` from npm, add it to OpenCode plugin config, and get durable memory, backfill tools, and project-doc indexing without cloning this repo.
+  actions:
+    - text: Install
+      link: /guides/install-develop-publish/
+      icon: right-arrow
+    - text: Review runtime architecture
+      link: /guides/opencode-memory-agent-outline/
+      icon: external
+      variant: minimal
+    - text: Reference architecture and differences
+      link: /reference/gemini-to-opencode-equivalents/
+      icon: open-book
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Maintainer
+
+<Card title="Maintained by Nick Roth" icon="user">
+  `opencode-memory-agent` is maintained by
+  [Nick Roth](https://www.nickroth.com) and developed in public on
+  [GitHub as @rothnic](https://github.com/rothnic).
+</Card>
+
+## What is included
+
+<CardGrid stagger>
+  <Card title="Installable npm plugin" icon="package">
+    The root package exports an OpenCode plugin entrypoint that can be referenced by package
+    name in `opencode.json`.
+  </Card>
+  <Card title="Memory + backlog tools" icon="list-tree">
+    The plugin captures session memory on idle, runs periodic consolidation, exposes
+    `memory_status`, `memory_backfill`, `memory_consolidate`, `memory_query`, and
+    `memory_refresh_docs`, and persists state in `.opencode/memory/`.
+  </Card>
+  <Card title="Project docs indexing" icon="open-book">
+    Common documentation files such as `README.md`, `AGENTS.md`, and `docs/**/*.mdx` are indexed
+    for later memory queries.
+  </Card>
+  <Card title="Reference architecture notes" icon="open-book">
+    Gemini reference architecture details and OpenCode-specific differences are documented in one
+    place and linked where needed.
+  </Card>
+  <Card title="Docs site + GitHub Pages" icon="earth">
+    This repository publishes its documentation with Astro Starlight and build-time Mermaid
+    SVG rendering.
+  </Card>
+</CardGrid>
