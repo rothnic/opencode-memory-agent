@@ -104,6 +104,47 @@ function serializeJsonField(value) {
   return JSON.stringify(Array.isArray(value) ? value : []);
 }
 
+function normalizeMemoryEntry(entry) {
+  return [
+    entry.id,
+    entry.source ?? 'session',
+    entry.sessionId ?? null,
+    entry.title ?? entry.sessionId ?? entry.id,
+    entry.summary ?? '',
+    serializeJsonField(entry.entities),
+    serializeJsonField(entry.facts),
+    serializeJsonField(entry.decisions),
+    serializeJsonField(entry.todos),
+    serializeJsonField(entry.topics),
+    serializeJsonField(entry.fileReferences),
+    entry.importance ?? 0.5,
+    entry.updatedAt ?? new Date().toISOString(),
+    entry.contentHash ?? '',
+    entry.messageCount ?? 0
+  ];
+}
+
+function normalizeInsightEntry(entry) {
+  return [
+    entry.id,
+    entry.kind ?? 'insight',
+    entry.summary ?? '',
+    entry.updatedAt ?? new Date().toISOString()
+  ];
+}
+
+function normalizeDocEntry(entry) {
+  return [
+    entry.path,
+    entry.title ?? entry.path,
+    serializeJsonField(entry.headings),
+    entry.excerpt ?? '',
+    entry.bytes ?? 0,
+    entry.updatedAt ?? new Date().toISOString(),
+    entry.contentHash ?? ''
+  ];
+}
+
 function mapMemoryRow(row) {
   return {
     id: row.id,
@@ -175,6 +216,26 @@ async function syncSharedArtifacts(config, db = null) {
   }
 }
 
+async function withDatabaseTransaction(config, callback) {
+  const db = openDatabase(config);
+  let inTransaction = false;
+  try {
+    db.exec('BEGIN');
+    inTransaction = true;
+    const result = await callback(db);
+    db.exec('COMMIT');
+    inTransaction = false;
+    return result;
+  } catch (error) {
+    if (inTransaction) {
+      db.exec('ROLLBACK');
+    }
+    throw error;
+  } finally {
+    db.close();
+  }
+}
+
 export async function ensureStore(config) {
   await ensureDirectory(config.paths.sharedDir);
   await ensureDirectory(config.paths.privateDir);
@@ -206,11 +267,7 @@ export async function readMemories(config) {
 }
 
 export async function writeMemories(config, value) {
-  const db = openDatabase(config);
-  let inTransaction = false;
-  try {
-    db.exec('BEGIN');
-    inTransaction = true;
+  await withDatabaseTransaction(config, async (db) => {
     db.exec('DELETE FROM memories');
     const insert = db.prepare(`
       INSERT INTO memories (
@@ -219,35 +276,10 @@ export async function writeMemories(config, value) {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const entry of value?.memories ?? []) {
-      insert.run(
-        entry.id,
-        entry.source ?? 'session',
-        entry.sessionId ?? null,
-        entry.title ?? entry.sessionId ?? entry.id,
-        entry.summary ?? '',
-        serializeJsonField(entry.entities),
-        serializeJsonField(entry.facts),
-        serializeJsonField(entry.decisions),
-        serializeJsonField(entry.todos),
-        serializeJsonField(entry.topics),
-        serializeJsonField(entry.fileReferences),
-        entry.importance ?? 0.5,
-        entry.updatedAt ?? new Date().toISOString(),
-        entry.contentHash ?? '',
-        entry.messageCount ?? 0
-      );
+      insert.run(...normalizeMemoryEntry(entry));
     }
-    db.exec('COMMIT');
-    inTransaction = false;
     await syncSharedArtifacts(config, db);
-  } catch (error) {
-    if (inTransaction) {
-      db.exec('ROLLBACK');
-    }
-    throw error;
-  } finally {
-    db.close();
-  }
+  });
 }
 
 export async function readInsights(config) {
@@ -260,27 +292,14 @@ export async function readInsights(config) {
 }
 
 export async function writeInsights(config, value) {
-  const db = openDatabase(config);
-  let inTransaction = false;
-  try {
-    db.exec('BEGIN');
-    inTransaction = true;
+  await withDatabaseTransaction(config, async (db) => {
     db.exec('DELETE FROM insights');
     const insert = db.prepare('INSERT INTO insights (id, kind, summary, updatedAt) VALUES (?, ?, ?, ?)');
     for (const entry of value?.insights ?? []) {
-      insert.run(entry.id, entry.kind ?? 'insight', entry.summary ?? '', entry.updatedAt ?? new Date().toISOString());
+      insert.run(...normalizeInsightEntry(entry));
     }
-    db.exec('COMMIT');
-    inTransaction = false;
     await syncSharedArtifacts(config, db);
-  } catch (error) {
-    if (inTransaction) {
-      db.exec('ROLLBACK');
-    }
-    throw error;
-  } finally {
-    db.close();
-  }
+  });
 }
 
 export async function readDocs(config) {
@@ -293,35 +312,14 @@ export async function readDocs(config) {
 }
 
 export async function writeDocs(config, value) {
-  const db = openDatabase(config);
-  let inTransaction = false;
-  try {
-    db.exec('BEGIN');
-    inTransaction = true;
+  await withDatabaseTransaction(config, async (db) => {
     db.exec('DELETE FROM docs');
     const insert = db.prepare('INSERT INTO docs (path, title, headings, excerpt, bytes, updatedAt, contentHash) VALUES (?, ?, ?, ?, ?, ?, ?)');
     for (const entry of value?.docs ?? []) {
-      insert.run(
-        entry.path,
-        entry.title ?? entry.path,
-        serializeJsonField(entry.headings),
-        entry.excerpt ?? '',
-        entry.bytes ?? 0,
-        entry.updatedAt ?? new Date().toISOString(),
-        entry.contentHash ?? ''
-      );
+      insert.run(...normalizeDocEntry(entry));
     }
-    db.exec('COMMIT');
-    inTransaction = false;
     await syncSharedArtifacts(config, db);
-  } catch (error) {
-    if (inTransaction) {
-      db.exec('ROLLBACK');
-    }
-    throw error;
-  } finally {
-    db.close();
-  }
+  });
 }
 
 export async function readState(config) {
@@ -369,23 +367,7 @@ export async function upsertMemory(config, entry) {
         updatedAt = excluded.updatedAt,
         contentHash = excluded.contentHash,
         messageCount = excluded.messageCount
-    `).run(
-      entry.id,
-      entry.source ?? 'session',
-      entry.sessionId ?? null,
-      entry.title ?? entry.sessionId ?? entry.id,
-      entry.summary ?? '',
-      serializeJsonField(entry.entities),
-      serializeJsonField(entry.facts),
-      serializeJsonField(entry.decisions),
-      serializeJsonField(entry.todos),
-      serializeJsonField(entry.topics),
-      serializeJsonField(entry.fileReferences),
-      entry.importance ?? 0.5,
-      entry.updatedAt ?? new Date().toISOString(),
-      entry.contentHash ?? '',
-      entry.messageCount ?? 0
-    );
+    `).run(...normalizeMemoryEntry(entry));
     const memories = readMemoriesFromDb(db);
     await syncSharedArtifacts(config, db);
     return memories;
